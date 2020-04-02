@@ -1,0 +1,15 @@
+Why is the 'a bound on T required?
+
+The 'a bound is required because the compiler needs
+to know that the items stored in the slice will
+live at least as long as the slice itself. This is
+important because we want to be able to access the
+values stored inside the backing store for the entire
+time that the StackVec is alive. If this wasn't
+enforced by the compiler, the items inside the store
+could be dropped before the StackVec is dropped. This
+would specifically become a problem when pushing a
+value to the StackVec that has a shorter lifetime,
+in which case it could get dropped before the
+StackVec is dropped and thus leave an invalid cell
+in the StackVec.

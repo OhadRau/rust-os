@@ -1,0 +1,9 @@
+What could go wrong if a client fabricates states?
+
+If  the client could fabricate state, we could end
+up with pins in unknown states -- even though the
+type might say the state is ALT, it could really be
+OUTPUT and we would have no way of knowing because
+the state is stored in the type. At that point, the
+driver would have no way of knowing what to do and
+would just break.

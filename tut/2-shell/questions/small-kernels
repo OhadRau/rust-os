@@ -1,0 +1,4 @@
+Is 63.58MiB really enough?
+
+On my current system, my kernel is only 4.3MB -- it would
+definitely fit into the 63.58MiB we have allocated!

@@ -1,0 +1,26 @@
+Rust can't ensure the safety of foreign code because it has no way
+of running the borrow checker or even the type checker on foreign
+code. For example, if you're interfacing with C you have to deal with
+C's weak typing, raw pointers, etc. Even if it could know what to do
+with these, C code is typically exposed by a header + compiled code
+(whether that's a shared object, executable, or unlinked object file).
+We can't perform any type checking or analysis on the compiled code,
+and the headers only show information which the programmer chose to
+make available externally. This is _never_ enough to make any guarantees
+about the safety of the code within, and additionally there's no proof
+that the provided headers actually match the compiled code at all.
+
+The safety situation is much better when linking against other Rust
+code because Rust forces each piece of code to use safety mechanisms
+that are true regardless of the location in the code. In other words,
+if the function I'm calling is determined to be safe on its own, it
+also must be safe to call from another file. This is due to things
+like the borrow checker, the type checker, the lack of mutable globals
+when writing safe code, etc. Additionally, each compiled object will
+be associated with its own safety contract that Rust can understand.
+This consists of the types of each function/trait/etc. as well as
+information for structs like field offsets. Since the types determine
+what can be done in a function (e.g. can't use after move, so a function
+that doesn't take a copyable/cloneable object can't reuse it), we can
+be sure that these guarantees will apply without having to recompile
+that program.

@@ -1,0 +1,6 @@
+Where does the write_fmt call go?
+
+The write_fmt call goes to the fmt::Write trait that's
+implemented on the console. Specifically, write_fmt
+formats the string and then calls into the write_str
+function. In turn, this goes to the MiniUart's write_str.

@@ -1,0 +1,12 @@
+Why did C choose these alignments?
+
+Because of the way that caching works, it's more efficient to
+fetch 8 or 16 bytes of memory and place those in the cache. Since
+it's quicker to access things at the beginning of a cache cell,
+it's better to align data to the byte boundaries where each cache
+cell starts. In practice, this happens to be every 8 or 16 bytes.
+Additionally, this allows you to take advantage of spatial locality:
+if we have a struct located at a 16 byte boundary and we grab its
+first few bytes, we know that the rest of the cached data will come
+from the same struct (rather than whatever was before it) since we
+aligned to the cache boundaries.

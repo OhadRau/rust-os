@@ -1,0 +1,18 @@
+How could you decrease your allocator’s fragmentation?
+
+1. Right now, during allocation we always pick the first
+block that's compatible. By spending a little longer searching
+for blocks to use, we could find blocks that are closer to
+the requested alignment. This would do a great job at reducing
+internal fragmentation as we would have less wasted space per
+allocated block.
+
+2. When splitting blocks, we could be more intelligent about
+layout. For example, based on the alignment we could often do
+a better job by either putting the returned block at the end of
+the large block (reducing internal fragmentation, since the
+alignments might match up better) or we could do some hand
+optimization to figure out common allocation alignments and
+prefer to break along those alignments (which would reduce
+external fragmentation, since we would have fewer unusable
+blocks).

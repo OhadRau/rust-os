@@ -1,0 +1,11 @@
+Why does StackVec require T: Clone to pop()?
+
+This is needed because we want to be able to continue
+using the values from a StackVec after popping them. If
+we didn't clone the values, we'd have to access them
+through a reference out of the store after popping.
+Since the StackVec is allocated from the stack, the
+entire vector will get dropped at once (including the
+contents) when the function that created the stack
+returns. When this happens, we'd likely still want the
+values to being able to clone on pop() is useful.

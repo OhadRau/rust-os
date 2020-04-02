@@ -1,0 +1,14 @@
+Why is it convenient to use an intrusive linked list?
+
+The advantage of using an intrusive linked list is that we
+only have to allocate the values stored in the list, and the
+nodes become part of that value, effectively cutting the
+number of allocations in half. If the values are statically
+allocated or stack allocated then there's no need to allocate
+the linked list nodes at all. I think the reason this approach
+works well is that we're embedding the linked list within the
+structure of memory, & since we don't have an allocator yet we
+can't rely on an allocator to make a normal linked list. Thus
+if we used a regular linked list, we'd run into an error since
+there would be no underlying allocator to call out to for each
+new node.

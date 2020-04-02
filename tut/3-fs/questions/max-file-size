@@ -1,0 +1,3 @@
+The maximum file size is 2^32 bytes (~4GB). This is because the file
+size in a directory entry is stored as 4 bytes (32 bits) and the unit
+is bytes, so 2^32 * bytes.

@@ -1,0 +1,18 @@
+While this isn't undefined behavior, I did (with the help of Sujin Park)
+find one huge gotcha in the interface. In traits/block_device.rs, the
+BlockDevice trait is defined for <'a, T: BlockDevice> &'a mut T. this
+means that for any mutable reference to a BlockDevice, every call will
+go to this trait. This trait is nice in that it forwards the read/write
+calls to the underlying impl for T, except for the case of sector_size().
+Since there's a default implementation for sector_size() that always
+returns 512, calling sector_size() on a &mut T now results in 512, even
+if the sector_size() impl for T returns something else. This is super
+error-prone, because your code can now break by changing a & parameter
+into a &mut parameter (and nothing else). This breaks a lot of the user's
+expectations about how &/&mut work and how sector_size() should work
+and is not justified in any of the comments. This could easily be fixed
+by forwarding the call to sector_size() (as is done with the other
+trait functions). The only reason this hasn't come up before is because
+we don't typically use devices that override this behavior as &mut --
+for CachedPartition this only came up inside it's own impl, because
+I was treating the CachedPartition as &mut there.

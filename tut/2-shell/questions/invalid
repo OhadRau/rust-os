@@ -1,0 +1,8 @@
+What happens when a flag’s input is invalid?
+
+The structopt calls out to various parsers in the parsers.rs file.
+Each argument has a specified parser that attempts to parse the
+provided strings into a Result of the correct type. When a flag's
+input is invalid, the parser prints out a specified error message,
+which is provided as an Err() value. Otherwise, it just returns the
+result.

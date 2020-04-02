@@ -1,0 +1,13 @@
+Why should we never return an &mut T directly?
+
+If we return an &mut T from a function we are effectively creating
+a safe mutable reference for the consumer of the function. Either
+this &mut T refers to an existing piece of memory, in which case
+this would allow us to create infinite mutable references to that
+same memory (which breaks memory safety!). Otherwise, we would just
+have to create a new piece of memory that is unused, because giving
+away the mutable reference would disallow us from using it later on.
+
+As an example, if we could keep getting new mutable consoles we could
+have consoles writing over each other. This would be a form of data
+race.

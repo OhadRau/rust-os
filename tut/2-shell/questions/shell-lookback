@@ -1,0 +1,11 @@
+How does your shell tie the many pieces together?
+
+The shell so far makes use of: the stack vec (command
+parsing), volatile (needed for the various drivers),
+gpio (through its use in UART), the UART component
+(for serial input/output), the console (for reading
+and writing to UART). The timer isn't currently used
+but will definitely serve as an important part of the
+future OS. Likewise, while we don't yet use xmodem or
+ttywrite the pieces are falling in place for these
+components.

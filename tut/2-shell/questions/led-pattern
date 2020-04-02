@@ -1,0 +1,6 @@
+Which pattern did you choose?
+
+Since I didn't set up my LEDs in a circle, I chose to
+do something that would fit in a line better. I made
+it start by lighting up the outer LEDs and go inside
+towards the middle LED before resetting.

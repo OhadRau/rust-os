@@ -1,0 +1,14 @@
+Which tests make use of the Deref implementations?
+
+Every test that uses the subscript notation would fail, since that
+inherently requires a deref. This includes index_oob,
+index_oob_after_truncate, indexing, and mut_indexing. Because of
+the way that the .iter() function is defined, it also requires
+the container type to implement Deref, so the following tests also
+depend on the Deref trait: assignment_text_example and iterator.
+
+For DerefMut?
+
+The mut_indexing trait would fail, since it depends on being able
+to use the subscript operator mutably, which requires a mutable
+dereference of the StackVec.

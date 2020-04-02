@@ -1,0 +1,9 @@
+FAT32 is limited to 2^28 clusters because only 28 bits of the cluster
+number are used. Specifically, the values that can be entered into the
+FAT ignore the top 4 bits. Beyond that, many of hte clusters are reserved.
+If we're speaking only about data + eoc clusters, we can only use
+0x00000002 .. 0x0FFFFFEF, 0x0FFFFFF8..0x0FFFFFFF which subtracts another
+11 possible clusters.
+
+In FAT16, I would imagine that the entries are 16 bits, so we should expect
+< 2^16. If 4 bits are still reserved, that would leave us with ~2^12 entries.

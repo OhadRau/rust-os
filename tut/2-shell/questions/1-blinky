@@ -1,0 +1,12 @@
+In assignment 1-blinky, you enabled GPIO pin 16
+as an output and then repeatedly set and cleared
+it by writing to registers GPFSEL1, GPSET0, and
+GPCLR0. Which three registers would you write to
+to do the same for GPIO pin 27? Which physical
+pin on the Raspberry Pi maps to GPIO pin 27?
+
+To setup, use bits the FSEL27 field (bits 21-23)
+on the GPFSEL2 register. To set & clear use the
+27th bit on the GPSET0 and GPCLR0 registers.
+
+This pin maps to pin 13 on the Pi.

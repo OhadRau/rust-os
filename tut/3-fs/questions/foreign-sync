@@ -1,0 +1,7 @@
+Since we can't really hope for a thread-safe API, it's up to us to
+try to make the Rust implementation thread-safe. To do this, I store
+a static mutex, so that we can restrict access to the SD card while
+it's busy. Since there's only ever one mutex, we can be sure that two
+threads can't lock the SD card at the same time. Every behavior
+implemented relies on locking, so we can be sure that our code privides
+a thread-safe interface.

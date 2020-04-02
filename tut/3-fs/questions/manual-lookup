@@ -1,0 +1,35 @@
+Step one is figuring out how to access the file system. Using the
+EBPB, we can determine a few things such as the logical sector size
+and bytes per sector of the partition. We can then figure out the
+basic info about the VFAT, such as bytes per sector/sectors per cluster,
+as well as where the FAT & data start (by using the reserved regions in
+the EBPB for FAT, then reserved regions + the total number of sectors to
+determine where the data starts). Finally, the EBPB specifies the root
+directory's cluster, which we'll need for lookups.
+
+Using this information, we can start by checking the root directory.
+If we inspect the FAT entry for that cluster (offset FAT by cluster #)
+we can find the corresponding chain, which allows us to determine the
+set of sectors we need to read to find all entries. Next, we can read
+every cluster in this chain (making sure to subtract 2 from the cluster
+number when finding its start sector, then multiply by # of sectors per
+cluster and add the start of the data region), then concatenate the
+contents of each cluster in the chain into one big buffer.
+
+This buffer represents all the directory entries, so we can simply go
+down the list and read each one. We can check if each entry is LFN or
+regular -- if it's LFN we group it together with all the consecutive
+LFNs and the regular entry afterwards. Since our filenames are all
+short, we won't need to use the LFN (most likely), so we can ignore
+all of these entries. Finally, at each entry we can compare its name
+field (assuming it's a regular entry & not tied to a previous LFN) to
+see whether it matches "a" after trimming whitespace. Since there's no
+file extension, we want to check that the ext field is empty. The start
+cluster's low and high bits are stored in the entry, so we want to
+take these and concatenate them to find the location of the "a" dir.
+
+Repeat this entire process starting from the "a" start sector to find
+"b" and then repeat again from "b" to find "c.txt". Note that "c.txt"
+will use the EXT field & name field, so we have to be careful to compare
+both of these. Finally, we can just return the cluster we find for
+c.txt's entry.

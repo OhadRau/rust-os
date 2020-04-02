@@ -1,0 +1,15 @@
+Why is it a bad idea to expose unions to end-users?
+
+It's a bad idea to expose unions because they allow the user to
+reinterpret data in a way that doesn't necessarily make sense.
+For example, you could interpret an int as a float or a float
+as a string, neither of which make sense (unless you know what
+you're doing... kinda). As a result, we want to keep these internal
+where we know how the types are being used. Exposing safe interfaces
+is important because it allows us to control what the user can do
+and make sure they don't misuse any interfaces. Interface misuse
+is a huge security flaw in many systems, because it can lead to
+things like buffer overruns. It's hard to yield the same benefits in
+C because C doesn't give us the tools to actually restrict what the
+user can do, whereas Rust (apart from unsafe) does a pretty good
+job at this.

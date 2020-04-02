@@ -1,0 +1,12 @@
+Why do you think Rust split responsibilities in this way?
+
+Rust splits these responsibilities because the C model is not
+necessary and has led to issues. The alignment guarantees are
+generally useful, so it makes more sense for the allocator to
+guarantee it. Conversely, the size of an allocation is useful
+to have the caller track, because that information often gets
+used by the caller anyways (e.g. string length). In addition,
+this gives the implementation freedom to track allocations in
+any way it needs, which might not always keep track of where
+each specific allocation begins and ends, but rather which
+regions are already allocated.

@@ -1,0 +1,69 @@
+What does your allocator look like?
+
+My allocator design is pretty simple, but is designed to be
+flexible. I start by allocating 1 block in the top bin, which
+includes all of the memory made available by memory_map(). When
+the user requests an allocation, I search for a block large
+enough to fit their request (with the correct alignment). Then,
+I determine whether the allocated block can be further split.
+If I have enough room leftover to create an 8-byte block
+(unaligned), I will always split. Otherwise, I'll just return
+the entire block without splitting.
+
+When the user frees, we first remove all the padding from a block.
+Since alignment won't be the same in the future, it doesn't make
+sense to use the old padding & it's much easier to deal with
+unpadded blocks in the free list. Then, I try merging each block
+with the block directly to the right (i.e. higher memory). Finally
+I merge to the left (i.e. lower memory). If either of these fails,
+we just get back the block without any merging. Once this has been
+done, we add it back to the proper free list based on the size of
+the block. The goal here is to try to reduce fragmentation by
+merging contiguous blocks, so that we don't exhaust all of our
+larger blocks of memory by making a ton of small allocations.
+
+Each block contains a header { next: LinkedList, free: bool,
+padding: usize, size: usize }. The next represents the next block
+in the free list & only matters if free == true. The padding is
+used once a block has been allocated, and specifies how much unused
+space there is between the header & the beginning of the block.
+A future optimization could be using a union to reduce the memory
+usage of these blocks, since padding & next are mutually exclusive.
+The size & padding are both in bytes, and the size refers to the
+usable space within a block (AKA the width of the data point).
+There is also a footer at the end which contains the size & padding
+so that we can easily jump to the header of a block from just its
+footer (useful for merging left).
+
+The layout of a block can be illustrated like so:
+  * free: [header | data (size) | footer]
+  * used: [padding | header | data (size) | footer]
+
+Note that the entire data section need not be filled. If we choose
+not to split a block, any leftover space will be kept track of by
+size & the returned block will be slightly larger than the requested
+size.
+
+I chose to use the suggested size classes, but to never create a block
+smaller than 8 bytes when splitting (if the user requests 1 byte and we
+find a 20 byte block, we could give them a 1 byte block and use the
+remaining size to create a larger split block).
+
+My allocator handles alignment by padding blocks to the proper alignment.
+The padding is always wider (or equal to) than the size of the header,
+so the header is technically placed within the padded space (but directly
+in front of the data segment, so we can always refer to it in constant
+time from the provided pointer during deallocation).
+
+Internal fragmentation can be high when allocating small blocks. If we
+kept trying to allocate blocks of size 1 after some splitting has already
+occured, we could often end up allocating blocks of size 8. We try to
+be efficient with splitting, but avoid creating split blocks smaller than
+8 bytes since these will often be unusable after padding. When allocating
+large blocks we will almost enver fragment unless the first compatible
+block found is a few bytes larger.
+
+In terms of external fragmentation, we try to treat this problem by
+merging freed blocks. However, the main cause for external fragmentation
+is actually from alignment, since many small blocks can't be used if they
+aren't aligned to the requested alignment.

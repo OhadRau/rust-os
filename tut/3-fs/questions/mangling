@@ -1,0 +1,13 @@
+Rust and C++ mangle names because names are not meant to be globally
+unique. In C, you cannot have two functions with the same name in one
+program, even if they originate from different compilation units. This
+is not true in Rust and C++ where we have namespaces, private/public
+specifiers, functions inside of other functions, generics, and
+interfaces/traits -- all of which can allow for reuse of the same name.
+
+In order to make calls always go to the right place without globally
+unique names, we need some method of locating the real callee. This is
+solved by name-mangling, since it allows us to look up names within
+namespaces/traits/generics/etc -- each piece of information that can
+be used to confuse two names is "mangled" into it. Thus a::b is stored
+in the binary as the identifier a::b (or some mangled version of that).

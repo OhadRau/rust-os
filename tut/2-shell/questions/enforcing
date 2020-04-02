@@ -1,0 +1,9 @@
+How are read-only and write-only accesses enforced?
+
+They enforce this by not giving a Readable/Writeable
+impl, so that there's no .read/.write function that
+can be called on that data type (without accessing
+the underlying pointer). Since these are abstractions
+that are given to safe code, you can't simply get the
+underlying pointer and do a read/write that's not
+permitted.

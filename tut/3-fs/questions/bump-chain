@@ -1,0 +1,10 @@
+What does the alloc call chain look like?
+
+v.push(i) calls to the system allocator that's implemented using
+the GlobalAllocator trait. In main.rs we declare the allocator as
+global_allocator, so it knows that this is the one to use. When
+the vector performs allocation, it calls out to GlobalAlloc::alloc
+for our Allocator. This then locks the allocation mutex, unwraps
+the inner allocator implementation, and calls its alloc() function.
+In this case, we're implementing it as a bump allocator so this is
+bump::Allocator::alloc().

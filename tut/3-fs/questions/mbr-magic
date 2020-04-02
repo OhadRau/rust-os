@@ -1,0 +1,5 @@
+How do you determine if the first sector is an MBR?
+
+The last two bytes of the sector (assuming size of the sector is
+512) will be the magic number 0x55 0xAA. The point of this is to
+make it easy & fast to check if a partition is an MBR.

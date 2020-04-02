@@ -1,0 +1,9 @@
+Why does the test.sh script always set -r?
+
+The test script always uses raw mode because it's simply writing to a pipe.
+If we wanted to test the Xmodem capabilities, we'd need a receiver and a
+sender on each side of the pipe. Not only would this complicate testing,
+it would require 2 way communication (which doesn't work on 1-way pipes).
+This would require some sort of network protocol or a more advanced IPC
+protocol and would introduce lots of complexity when working on different
+systems.

@@ -1,0 +1,12 @@
+What do the macros do?
+
+The macros provided are used to write the repetitive
+implementations for Readable/Writeable in lib.rs.
+Specifically, they take a type to implement the traits
+on and an expression to access the inner pointer that
+the reads/writes happen on. The default definitions of
+the traits then use this .inner() function to actually
+perform the default operations for reads/writes. This
+cuts down on a lot of code where one could easily make
+some small mistakes and break all the safety of the
+abstraction.

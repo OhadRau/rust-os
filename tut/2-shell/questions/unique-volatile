@@ -1,0 +1,8 @@
+Why does Unique<Volatile> exist?
+
+While Volatile implements volatile read/write to
+raw pointers, Unique<Volatile> adds an extra feature:
+it enforces synchronous read/write so you don't have
+any data races. Because the reads/writes are unsafe
+you have to be careful to not read/write at the same
+time and corrupt the volatile pointer's data.

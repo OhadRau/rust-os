@@ -1,0 +1,20 @@
+Why is the timeout necessary?
+
+If we failed to transmit the binary correctly (some error or
+interference over UART) then the receiver can cancel the
+transmission or send a NAK at the end to say that the checksum
+didn't match. If either of these happens, we need to retry
+the transmission or else the code will never get uploaded and
+we'll just jump into uninitialized memory. In this specific case
+we add the timeout so that if the read isn't ready to be processed
+then we'll retry after 750ms. This is because we could've missed
+the start of a transmission or there could be some read failure
+happening. By adding this timeout, we'll retry if the transmission
+hasn't gone thru or isn't ready to happen yet.
+
+As an example of a stall that could happen from not timing out,
+imagine that the receiver misses the final packet for some reason.
+In that case, it'll just keep waiting for this final packet to come
+thru and never jump into the actual program. Aborting the connection
+is required so that the uploader knows that it needs to reupload
+the code.

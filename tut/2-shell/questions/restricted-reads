@@ -1,0 +1,10 @@
+Why can't you write to CLO or CHI?
+
+Using the volatile library, CLO and CHI have been marked as
+ReadVolatile<u32>. I.e., they have only the read permission
+and they don't implement the Write trait. In order to write
+to them unsafely we'd need to get the underlying pointer
+from the ReadVolatile<u32> and write to it directly using
+the unsafe keyword & .read_volatile(). So without using the
+unsafe features and raw pointers, it's impossible to break
+this permission.

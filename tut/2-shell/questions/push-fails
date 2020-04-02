@@ -1,0 +1,11 @@
+Why does push return a Result?
+
+Because StackVec is backed by a slice, it has a
+set capacity. We can't resize the slice since it's
+a borrowed stack value. As a result, when we reach
+the full capacity we can't actually push anything
+since that would require overwriting existing data
+or accessing memory that can't safely be accessed.
+We return a Result<> so that the user can interpret
+whether or not the operation worked (in a standard
+way).
