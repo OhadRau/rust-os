@@ -1,49 +1,42 @@
 use core::time::Duration;
 use shim::io;
 use shim::ioerr;
-use crate::mutex::Mutex;
-
+use alloc::boxed::Box;
+use crate::console::{kprintln, kprint};
+use crate::ALLOCATOR;
+use core::mem;
+use core::alloc::Layout;
+use core::alloc::GlobalAlloc;
 use fat32::traits::BlockDevice;
+use pi::timer;
+use core::fmt;
+use shim::{const_assert_eq, const_assert_size};
 
 extern "C" {
-    /// A global representing the last SD controller error that occured.
-    static sd_err: i64;
+    /// zeros the memory for the static sd descriptor
+    fn sdInit(); 
 
-    /// Initializes the SD card controller.
-    ///
-    /// Returns 0 if initialization is successful. If initialization fails,
-    /// returns -1 if a timeout occured, or -2 if an error sending commands to
-    /// the SD controller occured.
-    fn sd_init() -> i32;
+    /// does the actual SD card initialization
+    fn sdInitCard() -> i64; 
 
-    /// Reads sector `n` (512 bytes) from the SD card and writes it to `buffer`.
-    /// It is undefined behavior if `buffer` does not point to at least 512
-    /// bytes of memory. Also, the caller of this function should make sure that
-    /// `buffer` is at least 4-byte aligned.
-    ///
-    /// On success, returns the number of bytes read: a positive number.
-    ///
-    /// On error, returns 0. The true error code is stored in the `sd_err`
-    /// global. `sd_err` will be set to -1 if a timeout occured or -2 if an
-    /// error sending commands to the SD controller occured. Other error codes
-    /// are also possible but defined only as being less than zero.
-    fn sd_readsector(n: i32, buffer: *mut u8) -> i32;
+    /// transfers num_blocks blocks to the SD card from buffer
+    /// addr: BYTE address of where to read from/write to
+    /// num_blocks: the number of blocks to transfer
+    /// buffer: buffer from which we read data/into which we right data
+    /// write: controls whether this transfer is read or write. 0 for READ, 1 for WRITE
+    fn sdTransferBlocks(addr: u64, num_blocks: i32, buffer: *mut u8, write: i32) -> i64;
 }
 
-// Define a `#[no_mangle]` `wait_micros` function for use by `libsd`.
-// The `wait_micros` C signature is: `void wait_micros(unsigned int);`
 #[no_mangle]
-fn wait_micros(mics: u32) {
-    // If we don't multiply by 100, it fails to load on my SanDisk SD card
-    // Shoutout to Will Gulian for the tip
-    pi::timer::spin_sleep(Duration::from_micros(mics as u64 * 100));
+pub extern "C" fn uart_putc(c: char) {
+    // this is a binding for the SD library that allows it to print to 
+    // our console
+    kprint!("{}", c);
 }
-
-static mut LOCK: Mutex<()> = Mutex::new(());
 
 /// A handle to an SD card controller.
 #[derive(Debug)]
-pub struct Sd;
+pub struct Sd {}
 
 impl Sd {
     /// Initializes the SD card controller and returns a handle to it.
@@ -52,13 +45,23 @@ impl Sd {
     /// with atomic memory access, but we can't use it yet since we haven't
     /// written the memory management unit (MMU).
     pub unsafe fn new() -> Result<Sd, io::Error> {
-        LOCK.lock();
-        match sd_init() {
-             0 => Ok(Sd),
-            -1 => ioerr!(TimedOut, "Timeout occured while initializing SD card"),
-            -2 => ioerr!(Other, "Unable to send commands to SD card"),
-            _ => ioerr!(Other, "Unknown SD card error occured"),
-        }
+        sdInit();
+        kprintln!("\nsd init ret: {}", sdInitCard());
+        /*let mut buf = [0u8; 512];
+        sdTransferBlocks(0, 1, buf.as_mut_ptr(), 0);
+        kprintln!("{:#?}", core::slice::from_raw_parts(buf.as_ptr(), buf.len()));
+        loop {}*/
+
+        Ok(Sd {})
+        /*let err = sd_init();
+        match err {
+            0 => Ok(Sd {}),
+            -1 => ioerr!(TimedOut, "SD Card Initialization Timed Out (init)"),
+            -2 => ioerr!(BrokenPipe, "Error Sending Commands to SD Card (init)"),
+            _ => ioerr!(Other, "Unknown Error Occurred (init)")
+        }*/
+
+        //unimplemented!("SD card and file system are read only")
     }
 }
 
@@ -76,49 +79,46 @@ impl BlockDevice for Sd {
     ///
     /// An error of kind `Other` is returned for all other errors.
     fn read_sector(&mut self, n: u64, buf: &mut [u8]) -> io::Result<usize> {
-        use core::alloc::{Layout};
-        use alloc::alloc::{alloc, dealloc};
-
+        if n > 0x7FFFFFFF {
+            return ioerr!(InvalidInput, "n is too large");
+        }
         if buf.len() < 512 {
-            return ioerr!(InvalidInput, "Buffer must be >=512 bytes to read SD sector")
-        } else if n > core::i32::MAX as u64 {
-            return ioerr!(InvalidInput, "Sector number must be < 2^31 - 1")
+            return ioerr!(InvalidInput, "buf.len() must be at least 512");
         }
 
-        let layout = Layout::from_size_align(buf.len(), 4).expect("Couldn't get layout");
-        let buffer = unsafe { alloc(layout) };
+        let buf_ptr = buf.as_mut_ptr();
 
-        // Read + err in the same unsafe, so we can't have anyone else
-        // read & change the error in between. These are on separate
-        // lines b/c the order of read THEN check error is important
-        // and I'm not sure Rust can guarantee that when constructing
-        // a tuple.
-        let (result, err) = unsafe {
-            LOCK.lock(); // Use mutex guard to auto-unlock
-            let read_result = sd_readsector(n as i32, buffer);
-            let err_result = sd_err;
-            (read_result, err_result)
-        };
-
-        let bytes_read = match result {
-            0 => match err {
-                -1 => ioerr!(TimedOut, "Timeout occured while initializing SD card"),
-                -2 => ioerr!(Other, "Unable to send commands to SD card"),
-                _ => ioerr!(Other, "Unknown SD card error occured")
-            },
-            bytes_read => Ok(bytes_read),
-        }?;
-
-        let buffer_slice =
-            unsafe { core::slice::from_raw_parts(buffer, buf.len()) };
-        buf.copy_from_slice(buffer_slice);
-
-        unsafe { dealloc(buffer, layout) };
-
-        Ok(bytes_read as usize)
+        // multiply n by 512 bc sdTransferBlocks expects a byte address
+        match unsafe { sdTransferBlocks(n * 512, 1, buf_ptr, 0) } {
+            0 => {
+                return Ok(n as usize);
+            }
+            err @ _ => { 
+                kprintln!("read error occured: {}", err);
+                ioerr!(BrokenPipe, "unknown sd error occurred")
+            }
+        }
     }
 
-    fn write_sector(&mut self, _n: u64, _buf: &[u8]) -> io::Result<usize> {
-        unimplemented!("SD card and file system are read only")
+    fn write_sector(&mut self, n: u64, buf: &[u8]) -> io::Result<usize> {
+        if n > 0x7FFFFFFF {
+            return ioerr!(InvalidInput, "n is too large");
+        }
+        if buf.len() < 512 {
+            return ioerr!(InvalidInput, "buf.len() must be at least 512");
+        }
+
+        let buf_ptr = buf.clone().as_ptr(); 
+
+        // multiply n by 512 bc sdTransferBlocks expects a byte address
+        match unsafe { sdTransferBlocks(n * 512, 1, buf_ptr as *mut u8, 1) } {
+            0 => {
+                return Ok(n as usize);
+            }
+            err @ _ => { 
+                kprintln!("write error occured: {}", err);
+                ioerr!(BrokenPipe, "unknown sd error occurred")
+            }
+        }
     }
 }
