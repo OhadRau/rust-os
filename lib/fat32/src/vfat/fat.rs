@@ -23,6 +23,17 @@ pub enum Status {
 pub struct FatEntry(pub u32);
 
 impl FatEntry {
+    /// Create a FatEntry from a status
+    pub fn from_status(status: Status) -> FatEntry {
+        match status {
+            Free => FatEntry(0x00000000),
+            Reserved => FatEntry(0x00000001),
+            Data(cluster) => FatEntry(cluster.num() & 0x0FFFFFFF),
+            Bad => FatEntry(0x0FFFFFF7),
+            Eoc(_) => FatEntry(0x0FFFFFF8),
+        }
+    }
+
     /// Returns the `Status` of the FAT entry `self`.
     pub fn status(&self) -> Status {
         match self.0 & 0x0FFFFFFF {
