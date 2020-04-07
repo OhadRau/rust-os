@@ -1,0 +1,15 @@
+[package]
+name = "aes128"
+version = "0.1.0"
+authors = [
+    "Matthew Sklar <msklar3@gatech.edu>",
+]
+edition = "2018"
+
+[dependencies]
+shim = { path = "../shim", features = ["alloc"] }
+fat32 = { path = "../fat32" }
+aes = "0.3.2"
+
+[features]
+no_std = ["shim/no_std"]

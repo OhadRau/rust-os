@@ -18,6 +18,7 @@ pi = { path = "../lib/pi" }
 shim = { path = "../lib/shim", features = ["no_std", "alloc"] }
 stack-vec = { path = "../lib/stack-vec/" }
 fat32 = { path = "../lib/fat32/", features = ["no_std"] }
+aes128 = { path = "../lib/aes128/", features = ["no_std"] }
 
 [dev-dependencies]
 shim = { path = "../lib/shim", features = ["alloc"] }

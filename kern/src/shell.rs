@@ -6,6 +6,11 @@ use stack_vec::StackVec;
 use pi::atags::Atags;
 
 use fat32::traits::{Dir, Entry, FileSystem, Metadata};
+use fat32::traits::BlockDevice;
+
+use aes128::edevice;
+
+use crate::fs::sd::Sd;
 
 use crate::console::{kprint, kprintln, CONSOLE};
 use crate::FILESYSTEM;
@@ -86,6 +91,7 @@ impl<'a> Command<'a> {
             },
             "ls" => ls(cwd, &self.args[1..]),
             "cat" => cat(cwd, &self.args[1..]),
+            "edevice" => edevice(cwd, &self.args[1..]),
             path => kprintln!("unknown command: {}", path)
         }
     }
@@ -213,6 +219,46 @@ fn cat(cwd: &PathBuf, args: &[&str]) {
     for arg in args {
         cat_one(cwd, arg)
     }
+}
+
+///
+/// edevice password
+/// 
+/// encrypted write and read of [0, 1, .., 31]
+/// 
+fn edevice(cwd: &PathBuf, args: &[&str]) {
+    if args.len() != 1 {
+        kprintln!("edevice only takes one arg");
+
+        return
+    }
+
+    let mut password = [0u8; 16];
+
+    for i in 0..16 {
+        password[i] = args[0].as_bytes()[i];
+    }
+
+    let sd = unsafe { Sd::new().expect("Unable to init SD card") };
+    let mut encryptedDevice = edevice::EncryptedDevice::new(&password, sd);
+
+    let mut buf = [1u8; 512];
+    let mut write_buf = [5u8; 512];
+
+    kprint!("write buffer: [");
+    for i in 0..write_buf.len() {
+        kprint!("{}, ", write_buf[i]);
+    }
+    kprintln!("]");
+    encryptedDevice.write_sector(512, &write_buf);
+    let bytes_read = encryptedDevice.read_sector(512, &mut buf);
+
+    kprintln!("read {:?} bytes", bytes_read);
+    kprint!("read buffer: [");
+    for i in 0..buf.len() {
+        kprint!("{}, ", buf[i]);
+    }
+    kprintln!("]");
 }
 
 /// Starts a shell using `prefix` as the prefix for each line. This function
