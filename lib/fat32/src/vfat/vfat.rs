@@ -30,6 +30,7 @@ pub struct VFat<HANDLE: VFatHandle> {
     fat_start_sector: u64,
     data_start_sector: u64,
     rootdir_cluster: Cluster,
+    num_fats: u8,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -56,7 +57,8 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
         };
         let cached = CachedPartition::new(device, partition);
 
-        let num_sectors = ebpb.num_fats as u64 * ebpb.sectors_per_fat as u64;
+        let num_fats = ebpb.num_fats;
+        let num_sectors = num_fats as u64 * ebpb.sectors_per_fat as u64;
 
         let sector_size = cached.sector_size() as u16;
 
@@ -68,7 +70,8 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
             sectors_per_fat: ebpb.sectors_per_fat,
             fat_start_sector: start_sector as u64 + ebpb.num_reserved_sectors as u64,
             data_start_sector: start_sector as u64 + ebpb.num_reserved_sectors as u64 + num_sectors,
-            rootdir_cluster: Cluster::from(ebpb.root_cluster_number)
+            rootdir_cluster: Cluster::from(ebpb.root_cluster_number),
+            num_fats,
         };
         Ok(HANDLE::new(vfat))
     }
@@ -214,6 +217,39 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
         let fat = self.device.get(sector)?;
         let entries = unsafe { &fat.cast::<FatEntry>() };
         Ok(&entries[offset])
+    }
+
+    pub fn set_fat_entry(&mut self, cluster: Cluster, new_entry: FatEntry) -> Option<()> {
+        let (sector, offset) = self.lookup_entry(cluster);
+        let fat = self.device.get_mut(sector).ok()?;
+        let entries = unsafe { &mut fat.cast_mut::<FatEntry>() };
+        entries[offset] = new_entry;
+        Some(())
+    }
+
+    pub fn find_free_entry(&mut self) -> Option<Cluster> {
+        let num_clusters =
+            (self.num_fats as u32) * self.sectors_per_fat / (self.sectors_per_cluster as u32);
+        for i in 0..num_clusters {
+            let cluster = Cluster::from(i);
+            match self.fat_entry(cluster).expect("Couldn't read FAT entry").status() {
+                Status::Free => return Some(cluster),
+                _ => continue
+            }
+        }
+        None
+    }
+
+    pub fn alloc_cluster(&mut self, new_entry: Status) -> Option<Cluster> {
+        let cluster = self.find_free_entry()?;
+        self.set_fat_entry(cluster, FatEntry::from_status(new_entry))?;
+        Some(cluster)
+    }
+
+    pub fn free_cluster(&mut self, cluster: Cluster) -> Option<()> {
+        let new_entry = Status::Free;
+        self.set_fat_entry(cluster, FatEntry::from_status(new_entry))?;
+        Some(())
     }
 
     pub fn bytes_per_cluster(&self) -> usize {
