@@ -475,3 +475,33 @@ fn shuffle_test() {
     let hash = hash_files_recursive_from(vfat, "/");
     assert_hash_eq!("mock 1 file hashes", hash, hash_for!("files-1"));
 }
+
+
+#[test]
+fn test_vfat_write() {
+    use vfat::Cluster;
+
+    let vfat = vfat_from_resource!("mock1.fat32.img");
+    vfat.lock(|vfat: &mut VFat<StdVFatHandle>| {
+        let mut buf = [0u8; 16];
+        let read =
+            vfat.read_cluster(Cluster::from(10), 10, &mut buf).expect("Couldn't read cluster 10:10");
+        assert_eq!(read, 16);
+        let orig = buf.clone();
+
+        let mut expected = buf.clone();
+        expected[0..3].copy_from_slice(&['h' as u8, 'e' as u8, 'y' as u8]);
+        let written =
+            vfat.write_cluster(Cluster::from(10), 10, &expected).expect("Couldn't write cluster 10:10");
+        assert_eq!(written, 16);
+
+        let read =
+            vfat.read_cluster(Cluster::from(10), 10, &mut buf).expect("Couldn't read cluster 10:10");
+        assert_eq!(read, 16);
+        assert_eq!(buf, expected);
+        
+        // Replace the file contents with the original so that the test works the next time around :)
+        let _ =
+            vfat.write_cluster(Cluster::from(10), 10, &orig).expect("Couldn't write cluster 10:10");
+    });
+}

@@ -130,6 +130,46 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
 
         Ok(read_size)
     }
+    
+    //
+    //  * A method to write from an offset of a cluster into a buffer.
+    //
+    pub fn write_cluster(&mut self, cluster: Cluster, offset: usize,
+                         buf: &[u8]) -> io::Result<usize> {
+        use core::cmp::min;
+
+        match self.fat_entry(cluster)?.status() {
+            Status::Data(_) | Status::Eoc(_) => (),
+            _ => return ioerr!(Other, "Tried to read from invalid cluster")
+        }
+
+        let start_sector = self.cluster_start_sector(cluster);
+        let bytes_per_sector = self.bytes_per_sector as usize;
+        let sector_num = offset / bytes_per_sector;
+        let sector_off = offset % bytes_per_sector;
+        let bytes_per_cluster = bytes_per_sector * self.sectors_per_cluster as usize;
+        let write_size = min(buf.len(), bytes_per_cluster - offset);
+
+        let mut bytes_written = 0;
+        let mut sector = start_sector + sector_num as u64;
+        while bytes_written < write_size {
+            let bytes = self.device.get_mut(sector)?;
+
+            if bytes_written == 0 {
+                let to_write = min(buf.len(), bytes[sector_off..].len());
+                bytes[sector_off..sector_off + to_write].copy_from_slice(&buf[..to_write]);
+                bytes_written += to_write;
+            } else {
+                let to_write = min(buf.len() - bytes_written, bytes.len());
+                bytes[..to_write].copy_from_slice(&buf[bytes_written..bytes_written+to_write]);
+                bytes_written += to_write;
+            }
+
+            sector += 1;
+        }
+
+        Ok(write_size)
+    }
 
     pub fn seek(&mut self, mut base: Pos, mut offset: usize) -> io::Result<Pos> {
         let cluster_size =
@@ -219,6 +259,7 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
         Ok(&entries[offset])
     }
 
+    // Replace a FatEntry on the disk
     pub fn set_fat_entry(&mut self, cluster: Cluster, new_entry: FatEntry) -> Option<()> {
         let (sector, offset) = self.lookup_entry(cluster);
         let fat = self.device.get_mut(sector).ok()?;
@@ -227,6 +268,7 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
         Some(())
     }
 
+    // Find the first unused FatEntry on the disk
     pub fn find_free_entry(&mut self) -> Option<Cluster> {
         let num_clusters =
             (self.num_fats as u32) * self.sectors_per_fat / (self.sectors_per_cluster as u32);
@@ -240,12 +282,14 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
         None
     }
 
+    // Allocate a cluster, updating its FatEntry to the requested status
     pub fn alloc_cluster(&mut self, new_entry: Status) -> Option<Cluster> {
         let cluster = self.find_free_entry()?;
         self.set_fat_entry(cluster, FatEntry::from_status(new_entry))?;
         Some(cluster)
     }
 
+    // Free a cluster, updating its FatEntry to show that it's free
     pub fn free_cluster(&mut self, cluster: Cluster) -> Option<()> {
         let new_entry = Status::Free;
         self.set_fat_entry(cluster, FatEntry::from_status(new_entry))?;
