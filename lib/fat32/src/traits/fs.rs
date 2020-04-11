@@ -19,8 +19,13 @@ pub trait Dir: Sized {
     /// An type that is an iterator over the entries in this directory.
     type Iter: Iterator<Item = Self::Entry>;
 
+    /// The type of metadata for entries in this directory.
+    type Metadata: Metadata;
+
     /// Returns an interator over the entries in this directory.
     fn entries(&self) -> io::Result<Self::Iter>;
+    /// Creates a new entry in the directory.
+    fn create(&mut self, meta: Self::Metadata) -> io::Result<Self::Entry>;
 }
 
 /// Trait implemented by directory entries in a file system.
