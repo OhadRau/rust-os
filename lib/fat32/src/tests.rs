@@ -52,7 +52,7 @@ macro expect_variant($e:expr, $variant:pat $(if $($cond:tt)*)*) {
 
 macro resource($name:expr) {{
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../ext/fat32-imgs/", $name);
-    match ::std::fs::File::open(path) {
+    match ::std::fs::OpenOptions::new().read(true).write(true).open(path) {
         Ok(file) => file,
         Err(e) => {
             eprintln!(
@@ -481,7 +481,7 @@ fn shuffle_test() {
 fn test_vfat_write() {
     use vfat::Cluster;
 
-    let vfat = vfat_from_resource!("mock1.fat32.img");
+    let vfat = vfat_from_resource!("mock2.fat32.img");
     vfat.lock(|vfat: &mut VFat<StdVFatHandle>| {
         let mut buf = [0u8; 16];
         let read =
@@ -504,4 +504,25 @@ fn test_vfat_write() {
         let _ =
             vfat.write_cluster(Cluster::from(10), 10, &orig).expect("Couldn't write cluster 10:10");
     });
+}
+
+#[test]
+fn test_create_file() {
+    let vfat = vfat_from_resource!("mock2.fat32.img");
+    let mut root = vfat.open_dir("/").expect("Couldn't get / as dir");
+    root.create(vfat::Metadata {
+        name: String::from("expected_lfn_name.txt"),
+        created: vfat::Timestamp::default(),
+        accessed: vfat::Timestamp::default(),
+        modified: vfat::Timestamp::default(),
+        attributes: vfat::Attributes::default(),
+        size: 0,
+    }).expect("Couldn't create /expected_lfn_name.txt");
+    let mut seen_expected = false;
+    for entry in root.entries().expect("Couldn't read entries in /") {
+        if entry.name() == "expected_lfn_name.txt" {
+            seen_expected = true;
+        }
+    }
+    assert!(seen_expected);
 }
