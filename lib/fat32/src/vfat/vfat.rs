@@ -260,11 +260,11 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
     }
 
     // Replace a FatEntry on the disk
-    pub fn set_fat_entry(&mut self, cluster: Cluster, new_entry: FatEntry) -> Option<()> {
+    pub fn set_fat_entry(&mut self, cluster: Cluster, new_status: Status) -> Option<()> {
         let (sector, offset) = self.lookup_entry(cluster);
         let fat = self.device.get_mut(sector).ok()?;
         let entries = unsafe { &mut fat.cast_mut::<FatEntry>() };
-        entries[offset] = new_entry;
+        entries[offset] = FatEntry::from_status(new_status);
         Some(())
     }
 
@@ -283,16 +283,15 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
     }
 
     // Allocate a cluster, updating its FatEntry to the requested status
-    pub fn alloc_cluster(&mut self, new_entry: Status) -> Option<Cluster> {
+    pub fn alloc_cluster(&mut self, new_status: Status) -> Option<Cluster> {
         let cluster = self.find_free_entry()?;
-        self.set_fat_entry(cluster, FatEntry::from_status(new_entry))?;
+        self.set_fat_entry(cluster, new_status)?;
         Some(cluster)
     }
 
     // Free a cluster, updating its FatEntry to show that it's free
     pub fn free_cluster(&mut self, cluster: Cluster) -> Option<()> {
-        let new_entry = Status::Free;
-        self.set_fat_entry(cluster, FatEntry::from_status(new_entry))?;
+        self.set_fat_entry(cluster, Status::Free)?;
         Some(())
     }
 
