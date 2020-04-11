@@ -271,7 +271,7 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
     // Find the first unused FatEntry on the disk
     pub fn find_free_entry(&mut self) -> Option<Cluster> {
         let num_clusters =
-            (self.num_fats as u32) * self.sectors_per_fat / (self.sectors_per_cluster as u32);
+            self.sectors_per_fat * (self.bytes_per_sector as u32) / (core::mem::size_of::<FatEntry>() as u32);
         for i in 0..num_clusters {
             let cluster = Cluster::from(i);
             match self.fat_entry(cluster).expect("Couldn't read FAT entry").status() {
