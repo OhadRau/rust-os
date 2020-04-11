@@ -8,6 +8,7 @@ pub struct File<HANDLE: VFatHandle> {
     pub vfat: HANDLE,
     pub start: Cluster,
     pub meta: Metadata,
+    pub entry: Option<Pos>,
     pub pos: Pos,
     pub amt_read: usize,
 }

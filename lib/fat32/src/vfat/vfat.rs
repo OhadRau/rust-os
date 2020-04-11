@@ -386,6 +386,7 @@ impl<'a, HANDLE: VFatHandle> FileSystem for &'a HANDLE {
                 vfat: self.clone(),
                 start: vfat.rootdir_cluster,
                 meta: Metadata::default(),
+                entry: None,
             })
         });
         for comp in path.as_ref().components() {

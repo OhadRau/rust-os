@@ -9,13 +9,14 @@ use shim::ioerr;
 use crate::traits;
 use crate::util::VecExt;
 use crate::vfat::{Attributes, VFat, Date, Metadata, Time, Timestamp};
-use crate::vfat::{Cluster, Entry, File, VFatHandle};
+use crate::vfat::{Cluster, Entry, File, VFatHandle, Pos};
 
 #[derive(Debug)]
 pub struct Dir<HANDLE: VFatHandle> {
     pub vfat: HANDLE,
     pub start: Cluster,
     pub meta: Metadata,
+    pub entry: Option<Pos>,
 }
 
 #[repr(C, packed)]
@@ -107,6 +108,7 @@ pub struct DirIter<HANDLE: VFatHandle> {
     vfat: HANDLE,
     entries: Vec<VFatDirEntry>,
     index: usize,
+    parent: Cluster,
 }
 
 impl<HANDLE: VFatHandle> DirIter<HANDLE> {
@@ -199,14 +201,19 @@ impl<HANDLE: VFatHandle> Iterator for DirIter<HANDLE> {
     type Item = Entry<HANDLE>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        use crate::vfat::Pos;
-
         let (meta, cluster) = self.get_meta()?;
+        let original_index = self.index - 1;
+        let entry_size = core::mem::size_of::<VFatUnknownDirEntry>();
+        let base_pos = Pos { cluster: self.parent, offset: 0 };
+        let entry = self.vfat.lock(|vfat: &mut VFat<HANDLE>| -> Option<Pos> {
+            vfat.seek(base_pos, original_index * entry_size).ok()
+        });
         if meta.attributes.is_dir() {
             let dir = Dir {
                 vfat: self.vfat.clone(),
                 start: cluster,
                 meta,
+                entry,
             };
             Some(Entry::Dir(dir))
         } else {
@@ -214,6 +221,7 @@ impl<HANDLE: VFatHandle> Iterator for DirIter<HANDLE> {
                 vfat: self.vfat.clone(),
                 start: cluster,
                 meta,
+                entry,
                 pos: Pos {
                     cluster,
                     offset: 0,
