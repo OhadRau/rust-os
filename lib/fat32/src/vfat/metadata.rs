@@ -27,6 +27,14 @@ impl Attributes {
     pub fn is_dir(&self) -> bool {
         (self.0 & 0x10) == 0x10
     }
+
+    pub fn lfn(&self) -> Self {
+        Attributes(self.0 | 0x0F)
+    }
+
+    pub fn dir(&self) -> Self {
+        Attributes(self.0 | 0x10)
+    }
 }
 
 /// A structure containing a date and time.
