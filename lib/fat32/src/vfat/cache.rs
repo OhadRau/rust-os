@@ -58,6 +58,18 @@ impl CachedPartition {
         }
     }
 
+    pub fn flush(&mut self) {
+        println!("FLUSHING TO DISK");
+        let start_sector = self.partition.start;
+        let end_sector = start_sector + self.partition.num_sectors;
+        for sector in start_sector..end_sector {
+            if self.cache.contains_key(&sector) && self.cache.get(&sector).expect("Couldn't get sector cache").dirty {
+                self.cache.get_mut(&sector).expect("Couldn't get sector cache").dirty = false;
+                self.write_to_disk(sector).expect("Failed to flush sector to disk");
+            }
+        }
+    }
+
     /// Returns the number of physical sectors that corresponds to
     /// one logical sector.
     fn factor(&self) -> u64 {
@@ -99,6 +111,23 @@ impl CachedPartition {
         Ok(())
     }
 
+    fn write_to_disk(&mut self, sector: u64) -> io::Result<()> {
+        println!("WRITING TO DISK @ SECTOR {}", sector);
+        if self.cache.contains_key(&sector) {
+            let phys = match self.virtual_to_physical(sector) {
+                Some(phys) => phys,
+                None => return ioerr!(NotFound, "Virtual sector doesn't map to physical")
+            };
+            let factor = self.factor() as usize;
+            let phys_size = self.device.sector_size() as usize;
+            let buf = &self.cache.get(&sector).expect("Couldn't read cached copy of sector").data;
+            for i in 0..factor {
+                self.device.write_sector(phys + i as u64, &buf[(phys_size * i)..])?;
+            }
+        }
+        Ok(())
+    }
+
     /// Returns a mutable reference to the cached sector `sector`. If the sector
     /// is not already cached, the sector is first read from the disk.
     ///
@@ -113,6 +142,7 @@ impl CachedPartition {
         self.read_to_cache(sector)?;
         let mut entry = self.cache.get_mut(&sector).unwrap();
         entry.dirty = true;
+        println!("Sector {} is dirty", sector);
         Ok(&mut entry.data)
     }
 
@@ -126,6 +156,12 @@ impl CachedPartition {
         self.read_to_cache(sector)?;
         let entry = self.cache.get(&sector).unwrap();
         Ok(&entry.data)
+    }
+}
+
+impl Drop for CachedPartition {
+    fn drop(&mut self) {
+        self.flush();
     }
 }
 
