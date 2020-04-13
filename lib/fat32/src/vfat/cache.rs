@@ -3,6 +3,7 @@ use alloc::vec::Vec;
 use core::fmt;
 use hashbrown::HashMap;
 use shim::io;
+
 use shim::ioerr;
 
 use crate::traits::BlockDevice;
@@ -59,15 +60,30 @@ impl CachedPartition {
     }
 
     pub fn flush(&mut self) {
-        // println!("FLUSHING TO DISK");
+        #[cfg(debug_assertions)]
+        println!("FLUSHING TO DISK");
         let start_sector = self.partition.start;
         let end_sector = start_sector + self.partition.num_sectors;
-        for sector in start_sector..end_sector {
+        let mut sectors = Vec::new();
+        for sector in self.cache.keys() {
+            sectors.push(sector.clone());
+        }
+        for sector in sectors {
+            //let ptr = &sector as *const u64 as u64;
+            //assert!(ptr % 8 == 0, "sector not aligned");
             if self.cache.contains_key(&sector) && self.cache.get(&sector).expect("Couldn't get sector cache").dirty {
                 self.write_to_disk(sector).expect("Failed to flush sector to disk");
                 self.cache.get_mut(&sector).expect("Couldn't get sector cache").dirty = false;
             }
+            /*let contains_key = match self.cache.get_mut(&sector) {
+                Some(_) => true,
+                None => false
+            };*/
+            //let contains_key = self.cache.get(sector).is_some();
+            //let dirty = self.cache.get(sector);//.expect("not in cache").dirty;
+
         }
+        //panic!("pre write to disk");
     }
 
     /// Returns the number of physical sectors that corresponds to
@@ -112,7 +128,8 @@ impl CachedPartition {
     }
 
     fn write_to_disk(&mut self, sector: u64) -> io::Result<()> {
-        // println!("WRITING TO DISK @ SECTOR {}", sector);
+        #[cfg(debug_assertions)]
+        println!("WRITING TO DISK @ SECTOR {}", sector);
         if self.cache.contains_key(&sector) {
             let phys = match self.virtual_to_physical(sector) {
                 Some(phys) => phys,
@@ -142,7 +159,8 @@ impl CachedPartition {
         self.read_to_cache(sector)?;
         let mut entry = self.cache.get_mut(&sector).unwrap();
         entry.dirty = true;
-        // println!("Sector {} is dirty", sector);
+        #[cfg(debug_assertions)]
+        println!("Sector {} is dirty", sector);
         Ok(&mut entry.data)
     }
 

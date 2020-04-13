@@ -80,6 +80,7 @@ impl fat32::traits::FileSystem for &FileSystem {
 
     /// The type of directory entries in this file system.
     type Entry = Entry<PiVFatHandle>;
+    type Metadata = fat32::vfat::Metadata;
 
     /// Opens the entry at `path`. `path` must be absolute.
     ///
@@ -98,6 +99,14 @@ impl fat32::traits::FileSystem for &FileSystem {
         match &mut *fs {
             Some(fs) => fs.open(path),
             None => ioerr!(Other, "Filesystem must be initialized before calling open()"),
+        }
+    }
+
+    fn flush(self) {
+        let mut fs = self.0.lock();
+        match &*fs {
+            Some(fs) => fs.flush(),
+            None => (),
         }
     }
 }

@@ -1,5 +1,4 @@
-use shim::{io, path::Path};
-
+use shim::{io, ioerr, path::Path};
 use crate::traits::Metadata;
 
 /// Trait implemented by files in the file system.
@@ -76,10 +75,12 @@ pub trait FileSystem: Sized {
     type File: File;
 
     /// The type of directories in this file system.
-    type Dir: Dir<Entry = Self::Entry>;
+    type Dir: Dir<Entry = Self::Entry, Metadata = Self::Metadata>;
 
     /// The type of directory entries in this file system.
     type Entry: Entry<File = Self::File, Dir = Self::Dir>;
+
+    type Metadata: Metadata;
 
     /// Opens the entry at `path`. `path` must be absolute.
     ///
@@ -94,6 +95,9 @@ pub trait FileSystem: Sized {
     ///
     /// All other error values are implementation defined.
     fn open<P: AsRef<Path>>(self, path: P) -> io::Result<Self::Entry>;
+
+    // flush to disk
+    fn flush(self);
 
     /// Opens the file at `path`. `path` must be absolute.
     ///
@@ -117,5 +121,14 @@ pub trait FileSystem: Sized {
         self.open(path)?
             .into_dir()
             .ok_or(io::Error::new(io::ErrorKind::Other, "not a directory"))
+    }
+    
+    fn create_dir<P: AsRef<Path>>(self, parent: P, metadata: Self::Metadata) -> io::Result<Self::Entry> {
+        match self.open(parent)?.into_dir() {
+            Some(mut dir) => {
+                dir.create(metadata)
+            }
+            None => ioerr!(NotFound, "could not find parent directory")
+        }
     }
 }
