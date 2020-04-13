@@ -81,6 +81,7 @@ impl<HANDLE: VFatHandle> io::Write for File<HANDLE> {
         // would be better to only flush sectors that pertain to this file
         // but that might not be possible with current implementation
         self.vfat.lock(|vfat: &mut VFat<HANDLE>| {
+            use traits::FileSystem;
             vfat.flush();
         });
         Ok(())

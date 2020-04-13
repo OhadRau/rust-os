@@ -106,11 +106,16 @@ fn get_short_name(name: String) -> ([u8; 8], [u8; 3]) {
 fn get_checksum(name: String) -> u8 {
     let mut sum = 0u8;
     let (name, ext) = get_short_name(name);
+    #[cfg(debug_assertions)]
     print!("Calculating checksum: ");
+
     for ch in name.iter().chain(&ext) {
         sum = ((sum & 1) << 7).wrapping_add(sum >> 1).wrapping_add(*ch);
     }
+
+    #[cfg(debug_assertions)]
     println!("");
+
     sum
 }
 
@@ -156,6 +161,7 @@ impl<HANDLE: VFatHandle> Dir<HANDLE> {
             offset: 0,
         };
 
+        #[cfg(debug_assertions)]
         println!("prev_index: {}, entry_size: {}, seeking to: {}", prev_index, entry_size, prev_index * entry_size);
         //assert_eq!(prev_index * entry_size, self.meta.size);
 
@@ -171,11 +177,16 @@ impl<HANDLE: VFatHandle> Dir<HANDLE> {
         let (name, ext) = get_short_name(meta.name.clone());
 
         let location = self.vfat.lock(|vfat: &mut VFat<HANDLE>| -> io::Result<Cluster> {
-            vfat.alloc_cluster(Status::Eoc(0)).ok_or(Error::new(ErrorKind::AddrInUse, "Couldn't find free cluster"))
+            let loc = vfat.alloc_cluster(Status::Eoc(0)).ok_or(Error::new(ErrorKind::AddrInUse, "Couldn't find free cluster"))?;
+            /*let mut buf = vec![0u8; vfat.bytes_per_cluster()];
+            vfat.write_cluster(loc, 0, &mut buf);*/
+            Ok(loc)
         })?;
+
+        #[cfg(debug_assertions)]
         println!("Allocated {:?} for new file", location);
-        let cluster_high = ((location.num() & 0xFFFF0000) >> 16) as u16;
-        let cluster_low  = (location.num() & 0xFFFF) as u16;
+        let cluster_high = 0x508d;//((location.num() & 0xFFFF0000) >> 16) as u16;
+        let cluster_low  = 0x508d;//(location.num() & 0xFFFF) as u16;
         let entry = VFatRegularDirEntry {
             name,
             ext,
@@ -242,11 +253,14 @@ impl<HANDLE: VFatHandle> Dir<HANDLE> {
             parts.push(name_buffer);
         }
 
+        #[cfg(debug_assertions)]
         println!("Name sequence: {:?}", name_sequence);
+        #[cfg(debug_assertions)]
         println!("Name parts: {:?}", parts);
 
         // Iterate backwards because LFN entries go in backwards order!
         for i in (0..parts.len()).rev() {
+            #[cfg(debug_assertions)]
             println!("Adding parts[{}] to FS", i);
             // Determine the LFN sequence number based on the index in the sequence
             let sequence_number = if i == parts.len() - 1 {
@@ -274,9 +288,14 @@ impl<HANDLE: VFatHandle> Dir<HANDLE> {
             let buf = unsafe { &entries.cast::<u8>() };
             start = self.vfat.lock(|vfat: &mut VFat<HANDLE>| -> io::Result<Pos> {
                 let amt_written = vfat.write_chain_pos(start, &buf)?;
+
+                #[cfg(debug_assertions)]
                 println!("Seeking {} bytes forward from {:?}", amt_written, start);
+
                 vfat.seek_and_extend(start, amt_written)
             })?;
+
+            #[cfg(debug_assertions)]
             println!("Ended up at {:?}", start);
         }
         self.create_entry(meta, start)
@@ -298,7 +317,9 @@ impl<HANDLE: VFatHandle> DirIter<HANDLE> {
         let mut long_name = false;
 
         loop {
+            #[cfg(debug_assertions)]
             println!("Trying to look for another entry ({})!", self.index);
+
             if self.index >= self.entries.len() {
                 return None
             }
@@ -308,9 +329,11 @@ impl<HANDLE: VFatHandle> DirIter<HANDLE> {
             let unknown = unsafe { entry.unknown };
 
             if unknown.valid == 0x00 {
+                #[cfg(debug_assertions)]
                 println!("It's invalid");
                 return None
             } else if unknown.valid == 0xE5 {
+                #[cfg(debug_assertions)]
                 println!("It's deleted");
                 long_name = false;
                 name_sequence = [0u16; 260];
@@ -318,11 +341,14 @@ impl<HANDLE: VFatHandle> DirIter<HANDLE> {
             }
 
             let is_lfn = unknown.attrs.is_lfn();
+
+            #[cfg(debug_assertions)]
             println!("Is it LFN? {}", is_lfn);
 
             if is_lfn {
                 let lfn = unsafe { entry.long_filename };
                 
+                #[cfg(debug_assertions)]
                 println!("Found checksum: {}", lfn.checksum);
 
                 let seq_num = ((lfn.sequence_number & 0x1F) - 1) as usize;
@@ -471,6 +497,7 @@ impl<HANDLE: VFatHandle> traits::Dir for Dir<HANDLE> {
                 let prev_pos = end_index;
                 self.get_start_pos(prev_pos)?
             };
+        #[cfg(debug_assertions)]
         println!("Start position: {:?}", start_pos);
 
         // Now determine whether the new entry is gonna be LFN or regular

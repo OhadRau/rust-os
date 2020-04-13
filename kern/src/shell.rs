@@ -1,5 +1,6 @@
 use shim::io;
-use shim::path::PathBuf;
+use shim::path::{Path, PathBuf, Component};
+use alloc::string::String;
 
 use stack_vec::StackVec;
 
@@ -91,6 +92,8 @@ impl<'a> Command<'a> {
             },
             "ls" => ls(cwd, &self.args[1..]),
             "cat" => cat(cwd, &self.args[1..]),
+            "mkdir" => mkdir(cwd, &self.args[1..]),
+            "write_file_test" => write_file_test(),
             "edevice" => edevice(cwd, &self.args[1..]),
             path => kprintln!("unknown command: {}", path)
         }
@@ -260,6 +263,83 @@ fn edevice(cwd: &PathBuf, args: &[&str]) {
     }
     kprintln!("]");
 }
+
+fn canonicalize(path: PathBuf) -> Result<PathBuf, ()> {
+    let mut new_path = PathBuf::new();
+
+    for comp in path.components() {
+        match comp {
+            Component::ParentDir => {
+                let res = new_path.pop();
+                if !res {
+                    return Err(());
+                }
+            },
+            Component::Normal(n) => new_path = new_path.join(n),
+            Component::RootDir => new_path = ["/"].iter().collect(),
+            _ => ()
+        };
+    }
+
+    Ok(new_path)
+}
+
+fn mkdir(cwd: &PathBuf, args: &[&str]) {
+    let abs_path = match canonicalize(cwd.clone()) {
+        Ok(p) => p,
+        Err(_) => {
+            kprintln!("bad path in mkdir");
+            return;
+        }
+    };
+    /*let mut raw_path: PathBuf = [args[1]].iter().collect(); 
+    if !raw_path.is_absolute() {
+        raw_path = cwd.as_ref().join(raw_path);
+    }
+
+    let abs_path = match canonicalize(raw_path) {
+        Ok(p) => p,
+        Err(_) => {
+            kprintln!("\ninvalid arg: {}", arg);
+            break;
+        }
+    };*/
+
+    let dir_metadata = fat32::vfat::Metadata {
+        name: args[0].into(),
+        created: fat32::vfat::Timestamp::default(),
+        accessed: fat32::vfat::Timestamp::default(),
+        modified: fat32::vfat::Timestamp::default(),
+        attributes: fat32::vfat::Attributes::default_dir(), // directory 
+        size: 1024
+    };
+
+    FILESYSTEM.create_dir(abs_path, dir_metadata);
+    FILESYSTEM.flush();
+}
+
+fn write_file_test() {
+    use shim::io::Write;
+    use shim::io::Read;
+    use shim::io::Seek;
+    let mut root = FILESYSTEM.open_dir("/").expect("Couldn't get / as dir");
+    root.create(fat32::vfat::Metadata {
+        name: String::from("test_write.txt"),
+        created: fat32::vfat::Timestamp::default(),
+        accessed: fat32::vfat::Timestamp::default(),
+        modified: fat32::vfat::Timestamp::default(),
+        attributes: fat32::vfat::Attributes::default(),
+        size: 0,
+    }).expect("Couldn't create /test_write.txt");
+    let test_file_entry = FILESYSTEM.open("/test_write.txt").expect("couldn't open /test_write.txt");
+    assert!(test_file_entry.is_file());
+    let mut test_file = test_file_entry.into_file().expect("couldn't open /test_write.txt as file");
+    let test_buf = "hello world!!\n".as_bytes();
+    assert_eq!(test_file.write(test_buf).unwrap(), test_buf.len());
+    assert_eq!(test_file.write(test_buf).unwrap(), test_buf.len());
+    FILESYSTEM.flush();
+}
+
 
 /// Starts a shell using `prefix` as the prefix for each line. This function
 /// never returns.

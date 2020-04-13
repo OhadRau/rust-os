@@ -35,6 +35,10 @@ impl Attributes {
     pub fn dir(&self) -> Self {
         Attributes(self.0 | 0x10)
     }
+
+    pub fn default_dir() -> Self {
+        Attributes(0x10)
+    }
 }
 
 /// A structure containing a date and time.
