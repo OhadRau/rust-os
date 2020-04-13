@@ -370,6 +370,11 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
     pub fn bytes_per_cluster(&self) -> usize {
         self.bytes_per_sector as usize * self.sectors_per_cluster as usize
     }
+
+    // wrapper to give users of the filesystem ability to flush it
+    pub fn flush(&mut self) {
+        self.device.flush();
+    }
 }
 
 impl<'a, HANDLE: VFatHandle> FileSystem for &'a HANDLE {

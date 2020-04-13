@@ -1,7 +1,10 @@
 use shim::io::{self, SeekFrom};
-
+use shim::ioerr;
 use crate::traits;
 use crate::vfat::{Cluster, Metadata, VFat, VFatHandle, Pos};
+use crate::vfat::dir::VFatRegularDirEntry;
+use core::mem;
+    
 
 #[derive(Debug)]
 pub struct File<HANDLE: VFatHandle> {
@@ -11,6 +14,23 @@ pub struct File<HANDLE: VFatHandle> {
     pub entry: Option<Pos>,
     pub pos: Pos,
     pub amt_read: usize,
+}
+
+impl<HANDLE: VFatHandle> File<HANDLE> {
+    // updates the regular file entry for this file to match the current metadata
+    // does not account for lfn entries
+    pub fn update_entry(&self) -> io::Result<usize> {
+        let reg_entry = self.into();
+        let reg_entry_buf: &[u8] = unsafe { &mem::transmute::<VFatRegularDirEntry, [u8; 32]>(reg_entry) };
+        match self.entry {
+            Some(e) => {
+                self.vfat.lock(|vfat: &mut VFat<HANDLE>| -> io::Result<usize> {
+                    vfat.write_cluster(e.cluster, e.offset, reg_entry_buf)
+                })
+            },
+            _ => ioerr!(NotFound, "file entry not found")
+        }
+    }
 }
 
 impl<HANDLE: VFatHandle> io::Read for File<HANDLE> {
@@ -37,12 +57,33 @@ impl<HANDLE: VFatHandle> io::Read for File<HANDLE> {
 }
 
 impl<HANDLE: VFatHandle> io::Write for File<HANDLE> {
-    fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
-        unimplemented!("FAT32 is not yet writeable")
+    // writes buf into file starting from current pos in file
+    // returns amount of data from buf that was actually written
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        use shim::io::Seek;
+        let bytes_written = self.vfat.lock(|vfat: &mut VFat<HANDLE>| -> io::Result<usize> {
+            vfat.write_chain_pos(self.pos, buf)
+        })?;
+
+        // update the file size if necessary
+        if self.meta.size < self.amt_read + bytes_written {
+            self.meta.size = self.amt_read + bytes_written;
+            self.update_entry()?;
+        }
+
+        // update current pos in file
+        self.seek(SeekFrom::Current(bytes_written as i64)).expect("couldn't seek in file write"); 
+        Ok(bytes_written)
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        unimplemented!("FAT32 is not yet writeable")
+        // just flush the entire cached partition here
+        // would be better to only flush sectors that pertain to this file
+        // but that might not be possible with current implementation
+        self.vfat.lock(|vfat: &mut VFat<HANDLE>| {
+            vfat.flush();
+        });
+        Ok(())
     }
 }
 
@@ -50,7 +91,8 @@ impl<HANDLE: VFatHandle> io::Write for File<HANDLE> {
 impl<HANDLE: VFatHandle> traits::File for File<HANDLE> {
     /// Writes any buffered data to disk.
     fn sync(&mut self) -> io::Result<()> {
-        unimplemented!("FAT32 is not yet writeable")
+        use shim::io::Write;
+        self.flush()
     }
 
     /// Returns the size of the file in bytes.
@@ -74,8 +116,6 @@ impl<HANDLE: VFatHandle> io::Seek for File<HANDLE> {
     /// Seeking before the start of a file or beyond the end of the file results
     /// in an `InvalidInput` error.
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        use shim::ioerr;
-
         let base = Pos {
             cluster: self.start,
             offset: 0,

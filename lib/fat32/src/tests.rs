@@ -526,3 +526,35 @@ fn test_create_file() {
     }
     assert!(seen_expected);
 }
+#[test]
+// depends on working file creation
+fn test_write_file() {
+    use shim::io::Write;
+    use shim::io::Read;
+    use shim::io::Seek;
+    let vfat = vfat_from_resource!("mock2.fat32.img");
+    let mut root = vfat.open_dir("/").expect("Couldn't get / as dir");
+    root.create(vfat::Metadata {
+        name: String::from("test_write.txt"),
+        created: vfat::Timestamp::default(),
+        accessed: vfat::Timestamp::default(),
+        modified: vfat::Timestamp::default(),
+        attributes: vfat::Attributes::default(),
+        size: 0,
+    }).expect("Couldn't create /test_write.txt");
+    let test_file_entry = vfat.open("/test_write.txt").expect("couldn't open /test_write.txt");
+    assert!(test_file_entry.is_file());
+    let mut test_file = test_file_entry.into_file().expect("couldn't open /test_write.txt as file");
+    let test_buf = "hello world!!\n".as_bytes();
+    assert_eq!(test_file.write(test_buf).unwrap(), test_buf.len());
+    assert_eq!(test_file.write(test_buf).unwrap(), test_buf.len());
+    let rewrite_buf = "bye  ".as_bytes();
+    test_file.seek(shim::io::SeekFrom::Start(0));
+    assert_eq!(test_file.write(rewrite_buf).unwrap(), rewrite_buf.len());
+    // this is kinda dumb but should work
+    let final_buf = "bye   world!!\nhello world!!\n".as_bytes();
+    let mut read_buf = [0u8; 28];
+    test_file.seek(shim::io::SeekFrom::Start(0));
+    assert_eq!(test_file.read(&mut read_buf).unwrap(), final_buf.len());
+    assert_eq!(read_buf, final_buf);
+}

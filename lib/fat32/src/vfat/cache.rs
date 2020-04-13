@@ -64,8 +64,8 @@ impl CachedPartition {
         let end_sector = start_sector + self.partition.num_sectors;
         for sector in start_sector..end_sector {
             if self.cache.contains_key(&sector) && self.cache.get(&sector).expect("Couldn't get sector cache").dirty {
-                self.cache.get_mut(&sector).expect("Couldn't get sector cache").dirty = false;
                 self.write_to_disk(sector).expect("Failed to flush sector to disk");
+                self.cache.get_mut(&sector).expect("Couldn't get sector cache").dirty = false;
             }
         }
     }

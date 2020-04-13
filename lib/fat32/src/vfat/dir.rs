@@ -34,8 +34,27 @@ pub struct VFatRegularDirEntry {
     cluster_low: u16,
     size: u32,
 }
-
 const_assert_size!(VFatRegularDirEntry, 32);
+
+impl<HANDLE: VFatHandle> From<&File<HANDLE>> for VFatRegularDirEntry {
+    fn from(file: &File<HANDLE>) -> VFatRegularDirEntry {
+        let (name, ext) = get_short_name(file.meta.name.clone());
+        VFatRegularDirEntry {
+            name,
+            ext,
+            attrs: file.meta.attributes,
+            __r0: 0,
+            created_millis: 0, // force this field to 0 for now
+            created: file.meta.created,
+            last_accessed: file.meta.accessed.date,
+            cluster_high: (file.start.num() >> 16) as u16,
+            modified: file.meta.modified,
+            cluster_low: (file.start.num() & 0xFFFF) as u16,
+            size: file.meta.size as u32
+        }
+    }
+}
+
 
 #[repr(C, packed)]
 #[derive(Copy, Clone)]
