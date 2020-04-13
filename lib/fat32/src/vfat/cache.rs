@@ -62,8 +62,8 @@ impl CachedPartition {
     pub fn flush(&mut self) {
         #[cfg(debug_assertions)]
         println!("FLUSHING TO DISK");
-        let start_sector = self.partition.start;
-        let end_sector = start_sector + self.partition.num_sectors;
+        //let start_sector = self.partition.start;
+        //let end_sector = start_sector + self.partition.num_sectors;
         let mut sectors = Vec::new();
         for sector in self.cache.keys() {
             sectors.push(sector.clone());
@@ -110,7 +110,7 @@ impl CachedPartition {
         if !self.cache.contains_key(&sector) {
             let phys = match self.virtual_to_physical(sector) {
                 Some(phys) => phys,
-                None => return ioerr!(NotFound, "Virtual sector doesn't map to physical")
+                None => return ioerr!(NotFound, "[READ] Virtual sector doesn't map to physical")
             };
             let factor = self.factor() as usize;
             let phys_size = self.device.sector_size() as usize;
@@ -133,7 +133,7 @@ impl CachedPartition {
         if self.cache.contains_key(&sector) {
             let phys = match self.virtual_to_physical(sector) {
                 Some(phys) => phys,
-                None => return ioerr!(NotFound, "Virtual sector doesn't map to physical")
+                None => return ioerr!(NotFound, "[WRITE] Virtual sector doesn't map to physical")
             };
             let factor = self.factor() as usize;
             let phys_size = self.device.sector_size() as usize;

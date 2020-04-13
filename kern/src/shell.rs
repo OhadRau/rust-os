@@ -93,7 +93,7 @@ impl<'a> Command<'a> {
             "ls" => ls(cwd, &self.args[1..]),
             "cat" => cat(cwd, &self.args[1..]),
             "mkdir" => mkdir(cwd, &self.args[1..]),
-            "write_file_test" => write_file_test(),
+            "write_file_test" => write_file_test(cwd),
             "edevice" => edevice(cwd, &self.args[1..]),
             path => kprintln!("unknown command: {}", path)
         }
@@ -318,20 +318,24 @@ fn mkdir(cwd: &PathBuf, args: &[&str]) {
     FILESYSTEM.flush();
 }
 
-fn write_file_test() {
+fn write_file_test(cwd: &PathBuf) {
     use shim::io::Write;
     use shim::io::Read;
     use shim::io::Seek;
-    let mut root = FILESYSTEM.open_dir("/").expect("Couldn't get / as dir");
-    root.create(fat32::vfat::Metadata {
+
+    let mut dir = FILESYSTEM.open_dir(cwd.as_path()).expect("Couldn't get $CWD as dir");
+    dir.create(fat32::vfat::Metadata {
         name: String::from("test_write.txt"),
         created: fat32::vfat::Timestamp::default(),
         accessed: fat32::vfat::Timestamp::default(),
         modified: fat32::vfat::Timestamp::default(),
         attributes: fat32::vfat::Attributes::default(),
         size: 0,
-    }).expect("Couldn't create /test_write.txt");
-    let test_file_entry = FILESYSTEM.open("/test_write.txt").expect("couldn't open /test_write.txt");
+    }).expect("Couldn't create test_write.txt");
+    let mut path = cwd.clone();
+    path.push("test_write.txt");
+
+    let test_file_entry = FILESYSTEM.open(path.as_path()).expect("couldn't open /test_write.txt");
     assert!(test_file_entry.is_file());
     let mut test_file = test_file_entry.into_file().expect("couldn't open /test_write.txt as file");
     let test_buf = "hello world!!\n".as_bytes();
