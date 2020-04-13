@@ -50,7 +50,7 @@ pub fn encrypt<'a, 'b>(buf: &'a mut [u8], cipher: &'b Aes128) -> Result<&'a mut 
 }
 
 ///
-/// Decrypt the input encrypted buffer in-place.BLOCK_SIZE
+/// Decrypt the input encrypted buffer in-place.
 /// 
 /// bef.len() must be a multiple of 16
 /// 

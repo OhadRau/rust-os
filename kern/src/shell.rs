@@ -8,7 +8,10 @@ use pi::atags::Atags;
 use fat32::traits::{Dir, Entry, FileSystem, Metadata};
 use fat32::traits::BlockDevice;
 
+use aes128::aes128::{encrypt, decrypt, gen_cipher};
 use aes128::edevice;
+
+use alloc::vec::Vec;
 
 use crate::fs::sd::Sd;
 
@@ -75,8 +78,6 @@ impl<'a> Command<'a> {
                 }
             },
             "testalloc" => {
-                use alloc::vec::Vec;
-
                 let mut v = Vec::new();
                 for i in 0..50 {
                     v.push(i);
@@ -92,6 +93,9 @@ impl<'a> Command<'a> {
             "ls" => ls(cwd, &self.args[1..]),
             "cat" => cat(cwd, &self.args[1..]),
             "edevice" => edevice(cwd, &self.args[1..]),
+            "enc" => enc(cwd, &self.args[1..]),
+            "dec" => dec(cwd, &self.args[1..]),
+            "encdec" => encdec(cwd, &self.args[1..]),
             path => kprintln!("unknown command: {}", path)
         }
     }
@@ -174,7 +178,6 @@ fn cat(cwd: &PathBuf, args: &[&str]) {
     fn cat_one(cwd: &PathBuf, path: &str) {
         use core::str;
         use io::Read;
-        use alloc::vec::Vec;
         use alloc::slice::SliceConcatExt;
 
         let mut rel_dir = cwd.clone();
@@ -226,7 +229,7 @@ fn cat(cwd: &PathBuf, args: &[&str]) {
 /// 
 /// encrypted write and read of [0, 1, .., 31]
 /// 
-fn edevice(cwd: &PathBuf, args: &[&str]) {
+fn edevice(_cwd: &PathBuf, args: &[&str]) {
     if args.len() != 1 {
         kprintln!("edevice only takes one arg");
 
@@ -240,18 +243,18 @@ fn edevice(cwd: &PathBuf, args: &[&str]) {
     }
 
     let sd = unsafe { Sd::new().expect("Unable to init SD card") };
-    let mut encryptedDevice = edevice::EncryptedDevice::new(&password, sd);
+    let mut encrypted_device = edevice::EncryptedDevice::new(&password, sd);
 
     let mut buf = [1u8; 512];
-    let mut write_buf = [5u8; 512];
+    let write_buf = [5u8; 512];
 
     kprint!("write buffer: [");
     for i in 0..write_buf.len() {
         kprint!("{}, ", write_buf[i]);
     }
     kprintln!("]");
-    encryptedDevice.write_sector(512, &write_buf);
-    let bytes_read = encryptedDevice.read_sector(512, &mut buf);
+    encrypted_device.write_sector(512, &write_buf).expect("failed to write to sector");
+    let bytes_read = encrypted_device.read_sector(512, &mut buf);
 
     kprintln!("read {:?} bytes", bytes_read);
     kprint!("read buffer: [");
@@ -259,6 +262,247 @@ fn edevice(cwd: &PathBuf, args: &[&str]) {
         kprint!("{}, ", buf[i]);
     }
     kprintln!("]");
+}
+
+/// enc password text
+fn enc(_cwd: &PathBuf, args: &[&str]) {
+    // check args
+    if args.len() != 2 {
+        kprintln!("enc takes 2 args");
+
+        return
+    }
+
+    // check password
+    let in_pass = args[0].as_bytes();
+
+    if in_pass.len() > 16 {
+        kprintln!("password can't be greater than 16 chars");
+
+        return
+    }
+
+    // make 16 byte password
+    let mut password = [0u8; 16];
+    let mut pass_vec = Vec::new();
+
+    for i in 0..in_pass.len() {
+        pass_vec.push(in_pass[i] as u8);
+    }
+
+    for _ in in_pass.len()..16 {
+        pass_vec.push('0' as u8);
+    }
+
+    for i in 0..16 {
+        password[i] = pass_vec[i];
+    }
+    kprint!("Encrypting with password: ");
+
+    for i in 0..password.len() {
+        kprint!("{}", password[i] as char);
+    }
+
+    kprintln!("");
+
+    // make 16 bytes X write buffer (pad ending with 0s)
+    let write_buf = args[1].as_bytes();
+
+    let mut write_buf_vec = Vec::new();
+
+    for i in 0..write_buf.len() {
+        write_buf_vec.push(write_buf[i]);
+    }
+
+    for _ in 0..16 - write_buf.len() % 16 {
+        write_buf_vec.push('0' as u8);
+    }
+
+    let write_buf = write_buf_vec.as_mut_slice();
+    kprint!("Encrypting text: ");
+
+    for i in 0..write_buf.len() {
+        kprint!("{}", write_buf[i] as char);
+    }
+
+    kprintln!("");
+
+    // encrypt data with password
+    let key = gen_cipher(&password);
+    kprintln!("Generated key using password");
+
+    encrypt(write_buf, &key).expect("failed to encrypt data");
+    kprintln!("Encrypted text");
+
+    kprintln!("Text encrypted as: ");
+    for i in 0..write_buf.len() {
+        kprint!("{}", write_buf[i] as char);
+    }
+
+    kprintln!("");
+}
+
+/// dec password cipher_text
+fn dec(_cwd: &PathBuf, args: &[&str]) {
+    // check args
+    if args.len() != 2 {
+        kprintln!("dec takes 2 args");
+
+        return
+    }
+
+    // check password
+    let in_pass = args[0].as_bytes();
+
+    if in_pass.len() > 16 {
+        kprintln!("password can't be greater than 16 chars");
+
+        return
+    }
+
+    // check cipher text
+    let cipher_text = args[1].as_bytes();
+
+    if cipher_text.len() % 16 != 0 {
+        kprintln!("cipher text's length must be a multiple of 16");
+
+        return
+    }
+
+    // make 16 byte password
+    let mut password = [0u8; 16];
+    let mut pass_vec = Vec::new();
+
+    for i in 0..in_pass.len() {
+        pass_vec.push(in_pass[i] as u8);
+    }
+
+    for _ in in_pass.len()..16 {
+        pass_vec.push('0' as u8);
+    }
+
+    for i in 0..16 {
+        password[i] = pass_vec[i];
+    }
+    kprint!("Decrypting with password: ");
+
+    for i in 0..password.len() {
+        kprint!("{}", password[i] as char);
+    }
+
+    kprintln!("");
+
+    // handle cipher text typing
+    let mut read_buf_vec: Vec<u8> = Vec::with_capacity(cipher_text.len());
+
+    for i in 0..cipher_text.len() {
+        read_buf_vec.push(cipher_text[i]);
+    }
+
+    let read_buf = read_buf_vec.as_mut_slice();
+
+    // decrypt data with password
+    let key = gen_cipher(&password);
+    kprintln!("Generated key using password");
+
+    decrypt(read_buf, &key).expect("Failed to decrypt cipher text");
+    kprintln!("Decrypted cipher text");
+
+    kprintln!("Cipher text decrypted as: ");
+    for i in 0..read_buf.len() {
+        kprint!("{}", read_buf[i] as char);
+    }
+
+    kprintln!("");    
+}
+
+/// encdec password text
+fn encdec(_cwd: &PathBuf, args: &[&str]) {
+    // check args
+    if args.len() != 2 {
+        kprintln!("encdec takes 2 args");
+
+        return
+    }
+
+    // check password
+    let in_pass = args[0].as_bytes();
+
+    if in_pass.len() > 16 {
+        kprintln!("password can't be greater than 16 chars");
+
+        return
+    }
+
+    // make 16 byte password
+    let mut password = [0u8; 16];
+    let mut pass_vec = Vec::new();
+
+    for i in 0..in_pass.len() {
+        pass_vec.push(in_pass[i] as u8);
+    }
+
+    for _ in in_pass.len()..16 {
+        pass_vec.push('0' as u8);
+    }
+
+    for i in 0..16 {
+        password[i] = pass_vec[i];
+    }
+    kprint!("Encrypting with password: ");
+
+    for i in 0..password.len() {
+        kprint!("{}", password[i] as char);
+    }
+
+    kprintln!("");
+
+    // make 16 bytes X write buffer (pad ending with 0s)
+    let write_buf = args[1].as_bytes();
+
+    let mut write_buf_vec = Vec::new();
+
+    for i in 0..write_buf.len() {
+        write_buf_vec.push(write_buf[i]);
+    }
+
+    for _ in 0..16 - write_buf.len() % 16 {
+        write_buf_vec.push('0' as u8);
+    }
+
+    let buf = write_buf_vec.as_mut_slice();
+    kprint!("Encrypting text: ");
+
+    for i in 0..buf.len() {
+        kprint!("{}", buf[i] as char);
+    }
+
+    kprintln!("");
+
+    // encrypt data with password
+    let key = gen_cipher(&password);
+    kprintln!("Generated key using password");
+
+    encrypt(buf, &key).expect("failed to encrypt data");
+    kprintln!("Encrypted text");
+
+    kprintln!("Text encrypted as: ");
+    for i in 0..buf.len() {
+        kprint!("{}", buf[i] as char);
+    }
+
+    kprintln!("");
+
+    // decrypt data with password
+    decrypt(buf, &key).expect("Failed to decrypt cipher text");
+    kprintln!("Decrypted cipher text");
+
+    kprintln!("Cipher text decrypted as: ");
+    for i in 0..buf.len() {
+        kprint!("{}", buf[i] as char);
+    }
+
+    kprintln!("");    
 }
 
 /// Starts a shell using `prefix` as the prefix for each line. This function
