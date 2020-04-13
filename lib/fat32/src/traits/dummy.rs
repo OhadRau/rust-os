@@ -41,9 +41,15 @@ impl Dir for Dummy {
     /// The type of entry stored in this directory.
     type Entry = Dummy;
     type Iter = Dummy;
+    type Metadata = Dummy;
 
     /// Returns an interator over the entries in this directory.
     fn entries(&self) -> io::Result<Self::Iter> {
+        panic!("Dummy")
+    }
+
+    /// Creates a new entry in the directory.
+    fn create(&mut self, _meta: Self::Metadata) -> io::Result<Self::Entry> {
         panic!("Dummy")
     }
 }

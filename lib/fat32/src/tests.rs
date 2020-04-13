@@ -52,7 +52,7 @@ macro expect_variant($e:expr, $variant:pat $(if $($cond:tt)*)*) {
 
 macro resource($name:expr) {{
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../ext/fat32-imgs/", $name);
-    match ::std::fs::File::open(path) {
+    match ::std::fs::OpenOptions::new().read(true).write(true).open(path) {
         Ok(file) => file,
         Err(e) => {
             eprintln!(
@@ -481,7 +481,7 @@ fn shuffle_test() {
 fn test_vfat_write() {
     use vfat::Cluster;
 
-    let vfat = vfat_from_resource!("mock1.fat32.img");
+    let vfat = vfat_from_resource!("mock2.fat32.img");
     vfat.lock(|vfat: &mut VFat<StdVFatHandle>| {
         let mut buf = [0u8; 16];
         let read =
@@ -504,4 +504,57 @@ fn test_vfat_write() {
         let _ =
             vfat.write_cluster(Cluster::from(10), 10, &orig).expect("Couldn't write cluster 10:10");
     });
+}
+
+#[test]
+fn test_create_file() {
+    let vfat = vfat_from_resource!("mock2.fat32.img");
+    let mut root = vfat.open_dir("/").expect("Couldn't get / as dir");
+    root.create(vfat::Metadata {
+        name: String::from("expected_lfn_name.txt"),
+        created: vfat::Timestamp::default(),
+        accessed: vfat::Timestamp::default(),
+        modified: vfat::Timestamp::default(),
+        attributes: vfat::Attributes::default(),
+        size: 0,
+    }).expect("Couldn't create /expected_lfn_name.txt");
+    let mut seen_expected = false;
+    for entry in root.entries().expect("Couldn't read entries in /") {
+        if entry.name() == "expected_lfn_name.txt" {
+            seen_expected = true;
+        }
+    }
+    assert!(seen_expected);
+}
+#[test]
+// depends on working file creation
+fn test_write_file() {
+    use shim::io::Write;
+    use shim::io::Read;
+    use shim::io::Seek;
+    let vfat = vfat_from_resource!("mock2.fat32.img");
+    let mut root = vfat.open_dir("/").expect("Couldn't get / as dir");
+    root.create(vfat::Metadata {
+        name: String::from("test_write.txt"),
+        created: vfat::Timestamp::default(),
+        accessed: vfat::Timestamp::default(),
+        modified: vfat::Timestamp::default(),
+        attributes: vfat::Attributes::default(),
+        size: 0,
+    }).expect("Couldn't create /test_write.txt");
+    let test_file_entry = vfat.open("/test_write.txt").expect("couldn't open /test_write.txt");
+    assert!(test_file_entry.is_file());
+    let mut test_file = test_file_entry.into_file().expect("couldn't open /test_write.txt as file");
+    let test_buf = "hello world!!\n".as_bytes();
+    assert_eq!(test_file.write(test_buf).unwrap(), test_buf.len());
+    assert_eq!(test_file.write(test_buf).unwrap(), test_buf.len());
+    let rewrite_buf = "bye  ".as_bytes();
+    test_file.seek(shim::io::SeekFrom::Start(0));
+    assert_eq!(test_file.write(rewrite_buf).unwrap(), rewrite_buf.len());
+    // this is kinda dumb but should work
+    let final_buf = "bye   world!!\nhello world!!\n".as_bytes();
+    let mut read_buf = [0u8; 28];
+    test_file.seek(shim::io::SeekFrom::Start(0));
+    assert_eq!(test_file.read(&mut read_buf).unwrap(), final_buf.len());
+    assert_eq!(read_buf, final_buf);
 }

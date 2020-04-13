@@ -144,11 +144,13 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
         }
 
         let start_sector = self.cluster_start_sector(cluster);
+        println!("Cluster {:?}/offset {} => start_sector {}", cluster, offset, start_sector);
         let bytes_per_sector = self.bytes_per_sector as usize;
         let sector_num = offset / bytes_per_sector;
         let sector_off = offset % bytes_per_sector;
         let bytes_per_cluster = bytes_per_sector * self.sectors_per_cluster as usize;
         let write_size = min(buf.len(), bytes_per_cluster - offset);
+        println!("Write size: {}", write_size);
 
         let mut bytes_written = 0;
         let mut sector = start_sector + sector_num as u64;
@@ -157,6 +159,7 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
 
             if bytes_written == 0 {
                 let to_write = min(buf.len(), bytes[sector_off..].len());
+                println!("to_write: {} | range: {}..{}", to_write, sector_off, sector_off + to_write);
                 bytes[sector_off..sector_off + to_write].copy_from_slice(&buf[..to_write]);
                 bytes_written += to_write;
             } else {
@@ -194,6 +197,37 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
         Ok(base)
     }
 
+    pub fn seek_and_extend(&mut self, mut base: Pos, mut offset: usize) -> io::Result<Pos> {
+        let cluster_size =
+            (self.bytes_per_sector as usize) * (self.sectors_per_cluster as usize);
+
+        while offset >= cluster_size {
+            offset -= cluster_size;
+            match self.fat_entry(base.cluster)?.status() {
+                Status::Eoc(_) => {
+                    if offset > 0 {
+                        let next_cluster =
+                            self.alloc_cluster(Status::Eoc(0)).expect("Couldn't allocate next cluster");
+                        self.set_fat_entry(base.cluster, Status::Data(next_cluster)).expect("Couldn't update FAT entry");
+                        base.cluster = next_cluster;
+                        base.offset = 0;
+                    }
+                },
+                Status::Data(next) => {
+                    base.cluster = next;
+                    base.offset = 0;
+                },
+                _ => return ioerr!(InvalidData, "Couldn't read cluster in chain")
+            }
+        }
+        base.offset += offset;
+        Ok(base)
+    }
+
+    //
+    //  * A method to read all of the clusters chained from a starting position
+    //    into a vector.
+    //
     pub fn read_chain_pos(&mut self, mut pos: Pos,
                           buf: &mut [u8]) -> io::Result<usize> {
         let mut bytes_read = 0;
@@ -249,6 +283,44 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
     }
 
     //
+    //  * A method to write all into the clusters chained from a starting position
+    //    from a vector.
+    //
+    pub fn write_chain_pos(&mut self, mut pos: Pos,
+                           buf: &[u8]) -> io::Result<usize> {
+        let mut bytes_written = 0;
+        println!("WRITING FROM {:?}", pos);
+        println!("Buffer length: {}", buf.len());
+
+        loop {
+            if bytes_written >= buf.len() {
+                return Ok(bytes_written)
+            }
+
+            let num_written = self.write_cluster(pos.cluster, pos.offset, &buf[bytes_written..])?;
+            println!("Just wrote {} bytes to {:?}", num_written, pos);
+
+            bytes_written += num_written;
+            match self.fat_entry(pos.cluster)?.status() {
+                Status::Eoc(_) => {
+                    if bytes_written < buf.len() {
+                        let next_cluster =
+                            self.alloc_cluster(Status::Eoc(0)).expect("Couldn't allocate next cluster");
+                        self.set_fat_entry(pos.cluster, Status::Data(next_cluster)).expect("Couldn't update FAT entry");
+                        pos.offset = 0;
+                        pos.cluster = next_cluster;
+                    }
+                },
+                Status::Data(next) => {
+                    pos.offset = 0;
+                    pos.cluster = next;
+                },
+                _ => return ioerr!(InvalidData, "Couldn't write cluster in chain")
+            }
+        }
+    }
+
+    //
     //  * A method to return a reference to a `FatEntry` for a cluster where the
     //    reference points directly into a cached sector.
     //
@@ -260,18 +332,18 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
     }
 
     // Replace a FatEntry on the disk
-    pub fn set_fat_entry(&mut self, cluster: Cluster, new_entry: FatEntry) -> Option<()> {
+    pub fn set_fat_entry(&mut self, cluster: Cluster, new_status: Status) -> Option<()> {
         let (sector, offset) = self.lookup_entry(cluster);
         let fat = self.device.get_mut(sector).ok()?;
         let entries = unsafe { &mut fat.cast_mut::<FatEntry>() };
-        entries[offset] = new_entry;
+        entries[offset] = FatEntry::from_status(new_status);
         Some(())
     }
 
     // Find the first unused FatEntry on the disk
     pub fn find_free_entry(&mut self) -> Option<Cluster> {
         let num_clusters =
-            (self.num_fats as u32) * self.sectors_per_fat / (self.sectors_per_cluster as u32);
+            self.sectors_per_fat * (self.bytes_per_sector as u32) / (core::mem::size_of::<FatEntry>() as u32);
         for i in 0..num_clusters {
             let cluster = Cluster::from(i);
             match self.fat_entry(cluster).expect("Couldn't read FAT entry").status() {
@@ -283,21 +355,25 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
     }
 
     // Allocate a cluster, updating its FatEntry to the requested status
-    pub fn alloc_cluster(&mut self, new_entry: Status) -> Option<Cluster> {
+    pub fn alloc_cluster(&mut self, new_status: Status) -> Option<Cluster> {
         let cluster = self.find_free_entry()?;
-        self.set_fat_entry(cluster, FatEntry::from_status(new_entry))?;
+        self.set_fat_entry(cluster, new_status)?;
         Some(cluster)
     }
 
     // Free a cluster, updating its FatEntry to show that it's free
     pub fn free_cluster(&mut self, cluster: Cluster) -> Option<()> {
-        let new_entry = Status::Free;
-        self.set_fat_entry(cluster, FatEntry::from_status(new_entry))?;
+        self.set_fat_entry(cluster, Status::Free)?;
         Some(())
     }
 
     pub fn bytes_per_cluster(&self) -> usize {
         self.bytes_per_sector as usize * self.sectors_per_cluster as usize
+    }
+
+    // wrapper to give users of the filesystem ability to flush it
+    pub fn flush(&mut self) {
+        self.device.flush();
     }
 }
 
@@ -315,6 +391,7 @@ impl<'a, HANDLE: VFatHandle> FileSystem for &'a HANDLE {
                 vfat: self.clone(),
                 start: vfat.rootdir_cluster,
                 meta: Metadata::default(),
+                entry: None,
             })
         });
         for comp in path.as_ref().components() {
