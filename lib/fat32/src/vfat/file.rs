@@ -61,6 +61,19 @@ impl<HANDLE: VFatHandle> io::Write for File<HANDLE> {
     // returns amount of data from buf that was actually written
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         use shim::io::Seek;
+
+        if self.start.num() == 0 { // File is empty
+            self.start = self.vfat.lock(|vfat: &mut VFat<HANDLE>| -> io::Result<Cluster> {
+                vfat.alloc_cluster(crate::vfat::Status::Eoc(0))
+                    .ok_or(io::Error::new(io::ErrorKind::AddrInUse, "Couldn't find free cluster"))
+            })?;
+        }
+
+        let start_pos = Pos { cluster: self.start.clone(), offset: 0 };
+        self.pos = self.vfat.lock(|vfat: &mut VFat<HANDLE>| -> io::Result<Pos> {
+            vfat.seek_and_extend(start_pos, self.amt_read)
+        })?;
+            
         let bytes_written = self.vfat.lock(|vfat: &mut VFat<HANDLE>| -> io::Result<usize> {
             vfat.write_chain_pos(self.pos, buf)
         })?;
@@ -81,7 +94,6 @@ impl<HANDLE: VFatHandle> io::Write for File<HANDLE> {
         // would be better to only flush sectors that pertain to this file
         // but that might not be possible with current implementation
         self.vfat.lock(|vfat: &mut VFat<HANDLE>| {
-            use traits::FileSystem;
             vfat.flush();
         });
         Ok(())

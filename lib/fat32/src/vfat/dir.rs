@@ -170,19 +170,77 @@ impl<HANDLE: VFatHandle> Dir<HANDLE> {
         })
     }
 
-    fn create_entry(&mut self, meta: Metadata, start: Pos) -> io::Result<Entry<HANDLE>> {
+    fn blank_dir(dir: Cluster, parent: Option<Cluster>) -> Vec<u8> {
+        let mut buffer = vec![0u8; 1024];
+
+        let empty_ext = [' ' as u8; 3];
+        let mut dot_name = [' ' as u8; 8];
+        let mut dotdot_name = [' ' as u8; 8];
+        dot_name[0] = '.' as u8;
+        dotdot_name[0] = '.' as u8;
+        dotdot_name[1] = '.' as u8;
+
+        let cluster_high = ((dir.num() & 0xFFFF0000) >> 16) as u16;
+        let cluster_low  = (dir.num() & 0xFFFF) as u16;
+        let dot = VFatRegularDirEntry {
+            name: dot_name,
+            ext: empty_ext,
+            attrs: Attributes::default().dir(), // do we need to hide it?
+            __r0: 0,
+            created_millis: 0,
+            created: Timestamp::default(),
+            last_accessed: Date::default(),
+            cluster_high,
+            modified: Timestamp::default(),
+            cluster_low,
+            size: 0,
+        };
+        
+        let cluster_high = if let Some(ploc) = parent {
+            ((ploc.num() & 0xFFFF0000) >> 16) as u16
+        } else { 0 };
+        let cluster_low  = if let Some(ploc) = parent {
+            (ploc.num() & 0xFFFF) as u16
+        } else { 0 };
+        let dotdot = VFatRegularDirEntry {
+            name: dotdot_name,
+            ext: empty_ext,
+            attrs: Attributes::default().dir(), // do we need to hide it?
+            __r0: 0,
+            created_millis: 0,
+            created: Timestamp::default(),
+            last_accessed: Date::default(),
+            cluster_high,
+            modified: Timestamp::default(),
+            cluster_low,
+            size: 0,
+        };
+        let entries = vec![dot, dotdot];
+        let entries_buf = unsafe { entries.cast::<u8>() };
+
+        buffer[0..entries_buf.len()].copy_from_slice(&entries_buf);
+
+        buffer
+    }
+
+    fn create_entry(&mut self, meta: Metadata, start: Pos, parent: Option<Cluster>) -> io::Result<Entry<HANDLE>> {
         use crate::vfat::Status;
         use io::{Error, ErrorKind};
 
         let (name, ext) = get_short_name(meta.name.clone());
 
-        let location = self.vfat.lock(|vfat: &mut VFat<HANDLE>| -> io::Result<Cluster> {
-            let loc = vfat.alloc_cluster(Status::Eoc(0)).ok_or(Error::new(ErrorKind::AddrInUse, "Couldn't find free cluster"))?;
-            /*let mut buf = vec![0u8; vfat.bytes_per_cluster()];
-            vfat.write_cluster(loc, 0, &mut buf);*/
-            Ok(loc)
-        })?;
-        // println!("Allocated {:?} for new file", location);
+        // We always create files as empty, so handle the empty cases for files & dirs
+        let location = if meta.attributes.is_dir() {
+            self.vfat.lock(|vfat: &mut VFat<HANDLE>| -> io::Result<Cluster> {
+                let cluster =
+                    vfat.alloc_cluster(Status::Eoc(0)).ok_or(Error::new(ErrorKind::AddrInUse, "Couldn't find free cluster"))?;
+                vfat.write_cluster(cluster, 0, &Self::blank_dir(cluster, parent))?;
+                Ok(cluster)
+            })?
+        } else {
+            Cluster::from(0)
+        };
+        //println!("Allocated {:?} for new file", location);
         let cluster_high = ((location.num() & 0xFFFF0000) >> 16) as u16;
         let cluster_low  = (location.num() & 0xFFFF) as u16;
         let entry = VFatRegularDirEntry {
@@ -231,7 +289,7 @@ impl<HANDLE: VFatHandle> Dir<HANDLE> {
         }
     }
 
-    fn create_lfn_entry(&mut self, meta: Metadata, mut start: Pos) -> io::Result<Entry<HANDLE>> {
+    fn create_lfn_entry(&mut self, meta: Metadata, mut start: Pos, parent: Option<Cluster>) -> io::Result<Entry<HANDLE>> {
         use core::cmp::min;
         use crate::util::SliceExt;
 
@@ -296,7 +354,7 @@ impl<HANDLE: VFatHandle> Dir<HANDLE> {
             #[cfg(debug_assertions)]
             println!("Ended up at {:?}", start);
         }
-        self.create_entry(meta, start)
+        self.create_entry(meta, start, parent)
     }
 }
 
@@ -507,10 +565,16 @@ impl<HANDLE: VFatHandle> traits::Dir for Dir<HANDLE> {
         } else {
             0
         };
+
+        // Determine if we're root & if not pass the start for the parent dir
+        let parent = match self.entry {
+            Some(_) => Some(self.start),
+            None => None,
+        };
         if base_length > 8 || ext_length > 3 || parts.len() > 2 {
-            self.create_lfn_entry(meta, start_pos)
+            self.create_lfn_entry(meta, start_pos, parent)
         } else {
-            self.create_entry(meta, start_pos)
+            self.create_entry(meta, start_pos, parent)
         }
     }
 }
