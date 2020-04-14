@@ -62,28 +62,15 @@ impl CachedPartition {
     pub fn flush(&mut self) {
         #[cfg(debug_assertions)]
         println!("FLUSHING TO DISK");
-        //let start_sector = self.partition.start;
-        //let end_sector = start_sector + self.partition.num_sectors;
-        let mut sectors = Vec::new();
-        for sector in self.cache.keys() {
-            sectors.push(sector.clone());
+        let dirty_sectors: Vec<u64> = self.cache.keys().filter(|sector| 
+            // should be safe to unwrap here because we are iterating over the keys
+            self.cache.get(&sector).unwrap().dirty
+        ).map(|sector| sector.clone()).collect();
+        
+        for sector in dirty_sectors {
+            self.write_to_disk(sector).expect("Failed to flush sector to disk");
+            self.cache.get_mut(&sector).expect("Couldn't get sector cache").dirty = false;
         }
-        for sector in sectors {
-            //let ptr = &sector as *const u64 as u64;
-            //assert!(ptr % 8 == 0, "sector not aligned");
-            if self.cache.contains_key(&sector) && self.cache.get(&sector).expect("Couldn't get sector cache").dirty {
-                self.write_to_disk(sector).expect("Failed to flush sector to disk");
-                self.cache.get_mut(&sector).expect("Couldn't get sector cache").dirty = false;
-            }
-            /*let contains_key = match self.cache.get_mut(&sector) {
-                Some(_) => true,
-                None => false
-            };*/
-            //let contains_key = self.cache.get(sector).is_some();
-            //let dirty = self.cache.get(sector);//.expect("not in cache").dirty;
-
-        }
-        //panic!("pre write to disk");
     }
 
     /// Returns the number of physical sectors that corresponds to
