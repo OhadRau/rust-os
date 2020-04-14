@@ -59,7 +59,7 @@ impl CachedPartition {
     }
 
     pub fn flush(&mut self) {
-        println!("FLUSHING TO DISK");
+        // println!("FLUSHING TO DISK");
         let start_sector = self.partition.start;
         let end_sector = start_sector + self.partition.num_sectors;
         for sector in start_sector..end_sector {
@@ -112,7 +112,7 @@ impl CachedPartition {
     }
 
     fn write_to_disk(&mut self, sector: u64) -> io::Result<()> {
-        println!("WRITING TO DISK @ SECTOR {}", sector);
+        // println!("WRITING TO DISK @ SECTOR {}", sector);
         if self.cache.contains_key(&sector) {
             let phys = match self.virtual_to_physical(sector) {
                 Some(phys) => phys,
@@ -142,7 +142,7 @@ impl CachedPartition {
         self.read_to_cache(sector)?;
         let mut entry = self.cache.get_mut(&sector).unwrap();
         entry.dirty = true;
-        println!("Sector {} is dirty", sector);
+        // println!("Sector {} is dirty", sector);
         Ok(&mut entry.data)
     }
 

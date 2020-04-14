@@ -144,13 +144,13 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
         }
 
         let start_sector = self.cluster_start_sector(cluster);
-        println!("Cluster {:?}/offset {} => start_sector {}", cluster, offset, start_sector);
+        // println!("Cluster {:?}/offset {} => start_sector {}", cluster, offset, start_sector);
         let bytes_per_sector = self.bytes_per_sector as usize;
         let sector_num = offset / bytes_per_sector;
         let sector_off = offset % bytes_per_sector;
         let bytes_per_cluster = bytes_per_sector * self.sectors_per_cluster as usize;
         let write_size = min(buf.len(), bytes_per_cluster - offset);
-        println!("Write size: {}", write_size);
+        // println!("Write size: {}", write_size);
 
         let mut bytes_written = 0;
         let mut sector = start_sector + sector_num as u64;
@@ -159,7 +159,7 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
 
             if bytes_written == 0 {
                 let to_write = min(buf.len(), bytes[sector_off..].len());
-                println!("to_write: {} | range: {}..{}", to_write, sector_off, sector_off + to_write);
+                // println!("to_write: {} | range: {}..{}", to_write, sector_off, sector_off + to_write);
                 bytes[sector_off..sector_off + to_write].copy_from_slice(&buf[..to_write]);
                 bytes_written += to_write;
             } else {
@@ -289,8 +289,8 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
     pub fn write_chain_pos(&mut self, mut pos: Pos,
                            buf: &[u8]) -> io::Result<usize> {
         let mut bytes_written = 0;
-        println!("WRITING FROM {:?}", pos);
-        println!("Buffer length: {}", buf.len());
+        // println!("WRITING FROM {:?}", pos);
+        // println!("Buffer length: {}", buf.len());
 
         loop {
             if bytes_written >= buf.len() {
@@ -298,7 +298,7 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
             }
 
             let num_written = self.write_cluster(pos.cluster, pos.offset, &buf[bytes_written..])?;
-            println!("Just wrote {} bytes to {:?}", num_written, pos);
+            // println!("Just wrote {} bytes to {:?}", num_written, pos);
 
             bytes_written += num_written;
             match self.fat_entry(pos.cluster)?.status() {
