@@ -1,5 +1,5 @@
 use shim::io;
-use shim::path::{Path, PathBuf, Component};
+use shim::path::{PathBuf, Component};
 use alloc::string::String;
 
 use stack_vec::StackVec;
@@ -95,6 +95,8 @@ impl<'a> Command<'a> {
             "cat" => cat(cwd, &self.args[1..]),
             "mkdir" => mkdir(cwd, &self.args[1..]),
             "write_file_test" => write_file_test(cwd),
+            "touch" => touch(cwd, &self.args[1..]),
+            "append" => append(cwd, &self.args[1..]),
             "edevice" => edevice(cwd, &self.args[1..]),
             "enc" => enc(cwd, &self.args[1..]),
             "dec" => dec(cwd, &self.args[1..]),
@@ -558,14 +560,12 @@ fn mkdir(cwd: &PathBuf, args: &[&str]) {
         size: 1024
     };
 
-    FILESYSTEM.create_dir(abs_path, dir_metadata);
+    FILESYSTEM.create_dir(abs_path, dir_metadata).expect("Failed to create dir");
     FILESYSTEM.flush();
 }
 
 fn write_file_test(cwd: &PathBuf) {
     use shim::io::Write;
-    use shim::io::Read;
-    use shim::io::Seek;
 
     let mut dir = FILESYSTEM.open_dir(cwd.as_path()).expect("Couldn't get $CWD as dir");
     dir.create(fat32::vfat::Metadata {
@@ -588,6 +588,54 @@ fn write_file_test(cwd: &PathBuf) {
     FILESYSTEM.flush();
 }
 
+fn touch(cwd: &PathBuf, args: &[&str]) {
+    for arg in args {
+        let arg_path = PathBuf::from(arg);
+        let raw_path = if !arg_path.is_absolute() {
+            cwd.join(arg_path)
+        } else { arg_path };
+        let path = canonicalize(raw_path).expect("Could not canonicalize path");
+        let base = path.parent();
+        let mut base_dir = match base {
+            None => FILESYSTEM.open_dir("/").expect("Could not get / as dir"),
+            Some(base) => FILESYSTEM.open_dir(base).expect("Could not get target as dir"),
+        };
+        let file = path.file_name().expect("Must specify a file to create")
+                       .to_str().expect("Couldn't get filename as string");
+        base_dir.create(fat32::vfat::Metadata {
+            name: String::from(file),
+            ..Default::default()
+        }).expect("Couldn't create file");
+    }
+    FILESYSTEM.flush();
+}
+
+fn append(cwd: &PathBuf, args: &[&str]) {
+    use shim::io::{Write, Seek, SeekFrom};
+
+    if args.len() < 2 {
+        kprintln!("USAGE: append [filename] [contents]");
+        return;
+    }
+
+    let arg_path = PathBuf::from(args[0]);
+    let raw_path = if !arg_path.is_absolute() {
+        cwd.join(arg_path)
+    } else { arg_path };
+    let path = canonicalize(raw_path).expect("Could not canonicalize path");
+    let mut fd = FILESYSTEM.open_file(path.as_path()).expect("Couldn't open file for writing");
+
+    for i in 1..args.len() {
+        fd.seek(SeekFrom::End(0)).expect("Failed to seek to end of file");
+        fd.write(&args[i].bytes().collect::<alloc::vec::Vec<u8>>()).expect("Failed to append to file");
+        if i < args.len() - 1 {
+            fd.write(&[' ' as u8]).expect("Failed to append space to file");
+        }
+    }
+    fd.write(&['\n' as u8]).expect("Failed to append newline to file");
+
+    FILESYSTEM.flush();
+}
 
 /// Starts a shell using `prefix` as the prefix for each line. This function
 /// never returns.
