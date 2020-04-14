@@ -46,7 +46,7 @@ pub struct Range {
 }
 
 impl<HANDLE: VFatHandle> VFat<HANDLE> {
-    pub fn from<T>(mut device: T) -> Result<HANDLE, Error>
+    pub fn from<T>(mut device: T, part_num: usize) -> Result<HANDLE, Error>
     where
         T: BlockDevice + 'static,
     {

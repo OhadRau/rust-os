@@ -1,16 +1,19 @@
 pub mod sd;
+pub mod mount_map;
 
 use alloc::rc::Rc;
 use core::fmt::{self, Debug};
 use shim::io;
 use shim::ioerr;
-use shim::path::Path;
+use shim::path::{Path, PathBuf};
 
 pub use fat32::traits;
 use fat32::vfat::{Dir, Entry, File, VFat, VFatHandle};
 
 use self::sd::Sd;
+use self::mount_map::MountMap;
 use crate::mutex::Mutex;
+use crate::console::kprintln;
 
 #[derive(Clone)]
 pub struct PiVFatHandle(Rc<Mutex<VFat<Self>>>);
@@ -38,8 +41,12 @@ impl VFatHandle for PiVFatHandle {
         f(&mut self.0.lock())
     }
 }
-pub struct FileSystem(Mutex<Option<PiVFatHandle>>);
-
+pub struct FileSystem(Mutex<Option<MountMap>>);
+/// plan: make a MountMap struct that maps a directory to a VFat 
+/// Make this FileSystem struct a wrapper around MountMap option
+/// MountMap will have mount/unmount methods that will associate it with Directories
+/// This FileSystem impl will handle routing of requests to appropriate VFS based on the path
+/// use path.starts_with
 impl FileSystem {
     /// Returns an uninitialized `FileSystem`.
     ///
@@ -63,10 +70,23 @@ impl FileSystem {
             Some(_) => panic!("Attempted to initialize FS twice"),
             None => (),
         }
-
+        let mut mount_map = MountMap::new();
         let sd = Sd::new().expect("Unable to init SD card");
-        let fs = VFat::<PiVFatHandle>::from(sd).expect("Unable to init VFat");
-        *guard = Some(fs);
+        //let fs = VFat::<PiVFatHandle>::from(sd, 1).expect("Unable to init VFat");
+        mount_map.mount(PathBuf::from("/"), sd, 1);
+        *guard = Some(mount_map);
+    }
+
+    pub fn flush_fs<P: AsRef<Path>>(&self, path: P) {
+        use fat32::traits::FileSystem;
+        let mut map = self.0.lock();
+        match &mut *map {
+            Some(map) => match map.route(path.as_ref().to_path_buf()) {
+                Ok(vfat) => vfat.flush(),
+                Err(_) => () // add error reporting??
+            },
+            None => (),
+        }
     }
 }
 
@@ -95,18 +115,30 @@ impl fat32::traits::FileSystem for &FileSystem {
     ///
     /// All other error values are implementation defined.
     fn open<P: AsRef<Path>>(self, path: P) -> io::Result<Self::Entry> {
-        let mut fs = self.0.lock();
-        match &mut *fs {
-            Some(fs) => fs.open(path),
+        let mut map = self.0.lock();
+        match &mut *map {
+            Some(map) => match map.route(path.as_ref().to_path_buf()) {
+                Ok(vfat) => vfat.open(path),
+                Err(_) => {
+                    ioerr!(NotFound, "Path is not mounted") 
+                }
+            },
             None => ioerr!(Other, "Filesystem must be initialized before calling open()"),
         }
+        //unimplemented!()
     }
 
     fn flush(self) {
-        let mut fs = self.0.lock();
+        /*let mut fs = self.0.lock();
         match &*fs {
             Some(fs) => fs.flush(),
             None => (),
-        }
+        }*/
+        /*let map = self.0.lock();
+        match &mut *map {
+            Some(map) => map.unmount_all(),
+            None => ioerr!(Other, "Filesystem must be initialized before calling flush()"),
+        }*/
+        unimplemented!("thou shall not flush the FileSystem container!!")
     }
 }

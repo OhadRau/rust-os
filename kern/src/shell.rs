@@ -320,8 +320,9 @@ fn mkdir(cwd: &PathBuf, args: &[&str]) {
         size: 1024
     };
 
+    let path_clone = abs_path.clone();
     FILESYSTEM.create_dir(abs_path, dir_metadata).expect("Failed to create dir");
-    FILESYSTEM.flush();
+    FILESYSTEM.flush_fs(path_clone);
 }
 
 fn write_file_test(cwd: &PathBuf) {
@@ -345,7 +346,7 @@ fn write_file_test(cwd: &PathBuf) {
     let test_buf = "hello world!!\n".as_bytes();
     assert_eq!(test_file.write(test_buf).unwrap(), test_buf.len());
     assert_eq!(test_file.write(test_buf).unwrap(), test_buf.len());
-    FILESYSTEM.flush();
+    FILESYSTEM.flush_fs(cwd);
 }
 
 fn touch(cwd: &PathBuf, args: &[&str]) {
@@ -366,8 +367,11 @@ fn touch(cwd: &PathBuf, args: &[&str]) {
             name: String::from(file),
             ..Default::default()
         }).expect("Couldn't create file");
+        match base {
+            Some(base) => FILESYSTEM.flush_fs(base),
+            None => FILESYSTEM.flush_fs("/")
+        }
     }
-    FILESYSTEM.flush();
 }
 
 fn append(cwd: &PathBuf, args: &[&str]) {
@@ -394,7 +398,7 @@ fn append(cwd: &PathBuf, args: &[&str]) {
     }
     fd.write(&['\n' as u8]).expect("Failed to append newline to file");
 
-    FILESYSTEM.flush();
+    FILESYSTEM.flush_fs(path);
 }
 
 fn rm(cwd: &PathBuf, args: &[&str]) {

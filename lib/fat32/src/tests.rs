@@ -88,7 +88,7 @@ macro hash_for($name:expr) {{
 }}
 
 macro vfat_from_resource($name:expr) {
-    VFat::<StdVFatHandle>::from(resource!($name)).expect("failed to initialize VFAT from image")
+    VFat::<StdVFatHandle>::from(resource!($name), 1).expect("failed to initialize VFAT from image")
 }
 
 #[test]
@@ -470,7 +470,7 @@ impl<T: BlockDevice> BlockDevice for Shuffle<T> {
 #[test]
 fn shuffle_test() {
     let shuffle = Shuffle::new(resource!("mock1.fat32.img"), 0x896ca0);
-    let vfat = VFat::<StdVFatHandle>::from(shuffle).expect("failed to initialize VFAT from image");
+    let vfat = VFat::<StdVFatHandle>::from(shuffle, 1).expect("failed to initialize VFAT from image");
 
     let hash = hash_files_recursive_from(vfat, "/");
     assert_hash_eq!("mock 1 file hashes", hash, hash_for!("files-1"));

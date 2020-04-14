@@ -144,6 +144,7 @@ version = "0.1.0"
 dependencies = [
  "aes128 0.1.0",
  "fat32 0.1.0",
+ "hashbrown 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "pi 0.1.0",
  "shim 0.1.0",
  "stack-vec 0.1.0",
