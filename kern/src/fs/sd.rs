@@ -47,21 +47,8 @@ impl Sd {
     pub unsafe fn new() -> Result<Sd, io::Error> {
         sdInit();
         kprintln!("\nsd init ret: {}", sdInitCard());
-        /*let mut buf = [0u8; 512];
-        sdTransferBlocks(0, 1, buf.as_mut_ptr(), 0);
-        kprintln!("{:#?}", core::slice::from_raw_parts(buf.as_ptr(), buf.len()));
-        loop {}*/
 
         Ok(Sd {})
-        /*let err = sd_init();
-        match err {
-            0 => Ok(Sd {}),
-            -1 => ioerr!(TimedOut, "SD Card Initialization Timed Out (init)"),
-            -2 => ioerr!(BrokenPipe, "Error Sending Commands to SD Card (init)"),
-            _ => ioerr!(Other, "Unknown Error Occurred (init)")
-        }*/
-
-        //unimplemented!("SD card and file system are read only")
     }
 }
 
@@ -93,7 +80,7 @@ impl BlockDevice for Sd {
             0 => {
                 return Ok(n as usize);
             }
-            err @ _ => { 
+            err => { 
                 kprintln!("read error occured: {}", err);
                 ioerr!(BrokenPipe, "unknown sd error occurred")
             }
@@ -115,7 +102,7 @@ impl BlockDevice for Sd {
             0 => {
                 return Ok(n as usize);
             }
-            err @ _ => { 
+            err => { 
                 kprintln!("write error occured: {}", err);
                 ioerr!(BrokenPipe, "unknown sd error occurred")
             }

@@ -24,7 +24,7 @@ use shim::io;
 /// then the read or write will automatically use 128bit AES encryption on 
 /// the data. If e_flag is not set, then it will read/write without encryption.
 /// 
-pub struct EncryptedDevice<T> {
+pub struct EncryptedDevice<T: BlockDevice> {
     cipher: Aes128,
     blockDevice: T,
     e_flag: bool,
