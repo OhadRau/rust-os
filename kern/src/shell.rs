@@ -99,8 +99,8 @@ impl<'a> Command<'a> {
             "rm" => rm(cwd, &self.args[1..]),
             "append" => append(cwd, &self.args[1..]),
             "lsblk" => FILESYSTEM.lsblk(),
-            "mount" => mount(&self.args[1], &self.args[2]),
-            "umount" => umount(&self.args[1]),
+            "mount" => mount(cwd, &self.args[1], &self.args[2]),
+            "umount" => umount(cwd, &self.args[1]),
             "edevice" => edevice(cwd, &self.args[1..]),
             "enc" => enc(cwd, &self.args[1..]),
             "dec" => dec(cwd, &self.args[1..]),
@@ -293,6 +293,23 @@ fn canonicalize(path: PathBuf) -> Result<PathBuf, ()> {
     Ok(new_path)
 }
 
+fn get_abs_path(cwd: &PathBuf, dir_arg: &str) -> Option<PathBuf> {
+    let mut raw_path: PathBuf = PathBuf::from(dir_arg);
+    if !raw_path.is_absolute() {
+        raw_path = cwd.clone().join(raw_path);
+    }
+
+    let abs_path = match canonicalize(raw_path) {
+        Ok(p) => p,
+        Err(_) => {
+            kprintln!("\ninvalid arg: {}", dir_arg);
+            return None;
+        }
+    };
+
+    Some(abs_path)
+}
+
 fn mkdir(cwd: &PathBuf, args: &[&str]) {
     /*let abs_path = match canonicalize(cwd.clone()) {
         Ok(p) => p,
@@ -302,19 +319,10 @@ fn mkdir(cwd: &PathBuf, args: &[&str]) {
         }
     };*/
 
-    let mut raw_path: PathBuf = PathBuf::from(args[0]);
-    if !raw_path.is_absolute() {
-        raw_path = cwd.clone().join(raw_path);
-    }
-
-    let abs_path = match canonicalize(raw_path) {
-        Ok(p) => p,
-        Err(_) => {
-            kprintln!("\ninvalid arg: {}", args[0]);
-            return;
-        }
+    let abs_path = match get_abs_path(cwd, args[0]) {
+        Some(p) => p,
+        None => return
     };
-
     /*if !abs_path.is_dir() {
         kprintln!("{}: not a directory", abs_path.to_str().unwrap());
         return;
@@ -438,7 +446,7 @@ fn rm(cwd: &PathBuf, args: &[&str]) {
     FILESYSTEM.flush();
 }
 
-fn mount(part_num_str: &str, mount_point: &str) {
+fn mount(cwd: &PathBuf, part_num_str: &str, mount_point: &str) {
     let part_num: usize = match part_num_str.parse() {
         Ok(num) => num,
         Err(_) => {
@@ -446,13 +454,22 @@ fn mount(part_num_str: &str, mount_point: &str) {
             return;
         }
     };
-    let mount_path_buf = PathBuf::from(mount_point);
-    FILESYSTEM.mount(part_num, mount_path_buf);
+
+    let abs_path = match get_abs_path(cwd, mount_point) {
+        Some(p) => p,
+        None => return
+    };
+
+    FILESYSTEM.mount(part_num, abs_path);
 }
 
-fn umount(mount_point: &str) {
-    let mount_path_buf = PathBuf::from(mount_point);
-    FILESYSTEM.unmount(mount_path_buf);
+fn umount(cwd: &PathBuf, mount_point: &str) {
+    let abs_path = match get_abs_path(cwd, mount_point) {
+        Some(p) => p,
+        None => return
+    };
+
+    FILESYSTEM.unmount(abs_path);
 }
 
 /// Starts a shell using `prefix` as the prefix for each line. This function

@@ -58,6 +58,12 @@ impl MountMap {
             return ioerr!(InvalidData, "mount point already mounted!!");
         }
 
+        for (path, entry) in self.map.iter() {
+            if (entry.part_num == part_num) {
+                return ioerr!(InvalidData, "partition already mounted!!")
+            }
+        }
+
         let vfat = match VFat::<PiVFatHandle>::from(device, part_num) {
             Ok(handle) => handle,
             Err(e) => return ioerr!(InvalidData, "Error intiailizing filesystem")
@@ -88,10 +94,10 @@ impl MountMap {
     /// for example if the mount point is /boot and the path is /boot
     /// the real path is /, when we're using the filesystem mounted at /boot
     pub fn route(&mut self, path: &PathBuf) -> Result<(&mut PiVFatHandle, PathBuf), ()> {
-        kprintln!("routing: {}", path.to_str().unwrap());
+        //kprintln!("routing: {}", path.to_str().unwrap());
         // we first get a vector of all the mount points that are prefixes of path
         let candidates: Vec<PathBuf> = self.map.keys().filter(|mount_point| path.starts_with(mount_point)).map(|pb| pb.clone()).collect();
-        kprintln!("candidates {:?}", candidates);
+        //kprintln!("candidates {:?}", candidates);
         // then we get the longest one, which should be the real mount point
         let mounted_at = candidates.iter().fold(None, |longest: Option<&PathBuf>, candidate: &PathBuf| {
                 let cand_len = match candidate.to_str() {
@@ -113,7 +119,7 @@ impl MountMap {
                     longest
                 }
             });
-        kprintln!("mounted at: {:?}", mounted_at);
+        //kprintln!("mounted at: {:?}", mounted_at);
         match mounted_at {
             // unwrap here should be safe because we know for a fact that
             // p is a key of the map
