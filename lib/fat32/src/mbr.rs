@@ -128,4 +128,20 @@ impl MasterBootRecord {
         }
         None
     }
+
+    // gonna do 1-indexed for now
+    // returns None if the selected partition is not vfat or is out of range
+    pub fn get_partition_start(&self, part_num: usize ) -> Option<u32> {
+        if part_num < 1 || part_num > 4 {
+            return None;
+        }
+        
+        let part = &self.partition_table[part_num - 1];
+
+        if part.partition_type == 0xB || part.partition_type == 0xC {
+            Some(part.relative_sector)
+        } else {
+            None
+        }
+    }
 }

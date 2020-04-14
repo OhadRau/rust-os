@@ -72,8 +72,15 @@ impl FileSystem {
         }
         let mut mount_map = MountMap::new();
         let sd = Sd::new().expect("Unable to init SD card");
+        match mount_map.mount_root(sd, 2) {
+            Ok(_) => (),
+            Err(_) => panic!("unable to mount root filesystem")
+        }
         //let fs = VFat::<PiVFatHandle>::from(sd, 1).expect("Unable to init VFat");
-        mount_map.mount(PathBuf::from("/"), sd, 1);
+        /*match mount_map.mount(&PathBuf::from("/boot"), sd, 1) {
+            Err(e) => kprintln!("{:?}", e),
+            Ok(_) => ()
+        }*/
         *guard = Some(mount_map);
     }
 
@@ -81,11 +88,38 @@ impl FileSystem {
         use fat32::traits::FileSystem;
         let mut map = self.0.lock();
         match &mut *map {
-            Some(map) => match map.route(path.as_ref().to_path_buf()) {
-                Ok(vfat) => vfat.flush(),
+            Some(map) => match map.route(&path.as_ref().to_path_buf()) {
+                Ok((vfat, real_path)) => vfat.flush(),
                 Err(_) => () // add error reporting??
             },
             None => (),
+        }
+    }
+
+    pub fn lsblk(&self) {
+        match &*self.0.lock() {
+            Some(map) => kprintln!("{}", map),
+            None => kprintln!("no map exists")
+        }
+    }
+
+    pub fn mount(&self, part_num: usize, mount_point: PathBuf) {
+        match &mut *self.0.lock() {
+            // passing in a blank Sd struct should work because the 
+            // sd descriptor is stored statically in the sd driver
+            // this assumes that sd driver has been initialized prior to this call
+            Some(map) => match map.mount(&mount_point, Sd {}, part_num) {
+                Ok(_) => kprintln!("mount successful"),
+                Err(e) => kprintln!("mount failed: {:?}", e)
+            },
+            None => kprintln!("no map exists")
+        }
+    }
+
+    pub fn unmount(&self, mount_point: PathBuf) {
+        match &mut *self.0.lock() {
+            Some(map) => map.unmount(&mount_point),
+            None => kprintln!("no map exists")
         }
     }
 }
@@ -117,8 +151,8 @@ impl fat32::traits::FileSystem for &FileSystem {
     fn open<P: AsRef<Path>>(self, path: P) -> io::Result<Self::Entry> {
         let mut map = self.0.lock();
         match &mut *map {
-            Some(map) => match map.route(path.as_ref().to_path_buf()) {
-                Ok(vfat) => vfat.open(path),
+            Some(map) => match map.route(&path.as_ref().to_path_buf()) {
+                Ok((vfat, real_path)) => vfat.open(real_path),
                 Err(_) => {
                     ioerr!(NotFound, "Path is not mounted") 
                 }

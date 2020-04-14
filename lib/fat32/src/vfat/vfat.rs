@@ -51,7 +51,7 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
         T: BlockDevice + 'static,
     {
         let mbr = MasterBootRecord::from(&mut device)?;
-        let start_sector = match mbr.find_vfat_partition() {
+        let start_sector = match mbr.get_partition_start(part_num) {
             Some(start) => start,
             None => return Err(Error::NotFound)
         };

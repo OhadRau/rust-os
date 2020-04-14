@@ -98,6 +98,9 @@ impl<'a> Command<'a> {
             "touch" => touch(cwd, &self.args[1..]),
             "rm" => rm(cwd, &self.args[1..]),
             "append" => append(cwd, &self.args[1..]),
+            "lsblk" => FILESYSTEM.lsblk(),
+            "mount" => mount(&self.args[1], &self.args[2]),
+            "umount" => umount(&self.args[1]),
             "edevice" => edevice(cwd, &self.args[1..]),
             "enc" => enc(cwd, &self.args[1..]),
             "dec" => dec(cwd, &self.args[1..]),
@@ -291,28 +294,34 @@ fn canonicalize(path: PathBuf) -> Result<PathBuf, ()> {
 }
 
 fn mkdir(cwd: &PathBuf, args: &[&str]) {
-    let abs_path = match canonicalize(cwd.clone()) {
+    /*let abs_path = match canonicalize(cwd.clone()) {
         Ok(p) => p,
         Err(_) => {
             kprintln!("bad path in mkdir");
             return;
         }
-    };
-    /*let mut raw_path: PathBuf = [args[1]].iter().collect(); 
+    };*/
+
+    let mut raw_path: PathBuf = PathBuf::from(args[0]);
     if !raw_path.is_absolute() {
-        raw_path = cwd.as_ref().join(raw_path);
+        raw_path = cwd.clone().join(raw_path);
     }
 
     let abs_path = match canonicalize(raw_path) {
         Ok(p) => p,
         Err(_) => {
-            kprintln!("\ninvalid arg: {}", arg);
-            break;
+            kprintln!("\ninvalid arg: {}", args[0]);
+            return;
         }
-    };*/
+    };
+
+    /*if !abs_path.is_dir() {
+        kprintln!("{}: not a directory", abs_path.to_str().unwrap());
+        return;
+    }*/
 
     let dir_metadata = fat32::vfat::Metadata {
-        name: args[0].into(),
+        name: String::from(abs_path.file_name().unwrap().to_str().unwrap()),
         created: fat32::vfat::Timestamp::default(),
         accessed: fat32::vfat::Timestamp::default(),
         modified: fat32::vfat::Timestamp::default(),
@@ -321,7 +330,7 @@ fn mkdir(cwd: &PathBuf, args: &[&str]) {
     };
 
     let path_clone = abs_path.clone();
-    FILESYSTEM.create_dir(abs_path, dir_metadata).expect("Failed to create dir");
+    FILESYSTEM.create_dir(abs_path.parent().unwrap(), dir_metadata).expect("Failed to create dir");
     FILESYSTEM.flush_fs(path_clone);
 }
 
@@ -427,6 +436,23 @@ fn rm(cwd: &PathBuf, args: &[&str]) {
         }
     }
     FILESYSTEM.flush();
+}
+
+fn mount(part_num_str: &str, mount_point: &str) {
+    let part_num: usize = match part_num_str.parse() {
+        Ok(num) => num,
+        Err(_) => {
+            kprintln!("invalid partition number");
+            return;
+        }
+    };
+    let mount_path_buf = PathBuf::from(mount_point);
+    FILESYSTEM.mount(part_num, mount_path_buf);
+}
+
+fn umount(mount_point: &str) {
+    let mount_path_buf = PathBuf::from(mount_point);
+    FILESYSTEM.unmount(mount_path_buf);
 }
 
 /// Starts a shell using `prefix` as the prefix for each line. This function
