@@ -112,6 +112,19 @@ impl<HANDLE: VFatHandle> traits::File for File<HANDLE> {
     fn size(&self) -> u64 {
         self.meta.size as u64
     }
+
+    fn delete(&mut self) -> io::Result<()> {
+        let entries_start = match self.entry {
+            Some(Range {start, ..}) => start,
+            None => return ioerr!(NotFound, "Cannot delete a file without a directory entry"),
+        };
+        self.vfat.lock(|vfat: &mut VFat<HANDLE>| -> io::Result<()> {
+            // Free all the allocated space for the file's contents
+            if self.size() > 0 { vfat.free_chain(self.start)?; }
+            // Then mark all the dir entries as invalid
+            Dir::invalidate_entries(vfat, entries_start)
+        })
+    }
 }
 
 impl<HANDLE: VFatHandle> io::Seek for File<HANDLE> {

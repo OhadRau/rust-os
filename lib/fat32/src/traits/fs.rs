@@ -8,6 +8,9 @@ pub trait File: io::Read + io::Write + io::Seek + Sized {
 
     /// Returns the size of the file in bytes.
     fn size(&self) -> u64;
+
+    /// Delete the file & its contents from the filesystem
+    fn delete(&mut self) -> io::Result<()>;
 }
 
 /// Trait implemented by directories in a file system.
@@ -25,6 +28,8 @@ pub trait Dir: Sized {
     fn entries(&self) -> io::Result<Self::Iter>;
     /// Creates a new entry in the directory.
     fn create(&mut self, meta: Self::Metadata) -> io::Result<Self::Entry>;
+    /// Delete the dir & its contents from the filesystem
+    fn delete(&mut self) -> io::Result<()>;
 }
 
 /// Trait implemented by directory entries in a file system.

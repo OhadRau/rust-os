@@ -34,6 +34,9 @@ impl File for Dummy {
     fn size(&self) -> u64 {
         panic!("Dummy")
     }
+    fn delete(&mut self) -> io::Result<()> {
+        panic!("Dummy")
+    }
 }
 
 /// Trait implemented by directories in a file system.
@@ -50,6 +53,11 @@ impl Dir for Dummy {
 
     /// Creates a new entry in the directory.
     fn create(&mut self, _meta: Self::Metadata) -> io::Result<Self::Entry> {
+        panic!("Dummy")
+    }
+
+    // Deletes the directory if it's empty
+    fn delete(&mut self) -> io::Result<()> {
         panic!("Dummy")
     }
 }

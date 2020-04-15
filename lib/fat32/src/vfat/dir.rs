@@ -24,7 +24,7 @@ pub struct Dir<HANDLE: VFatHandle> {
 }
 
 #[repr(C, packed)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct VFatRegularDirEntry {
     name: [u8; 8],
     ext:  [u8; 3],
@@ -59,9 +59,8 @@ impl<HANDLE: VFatHandle> From<&File<HANDLE>> for VFatRegularDirEntry {
     }
 }
 
-
 #[repr(C, packed)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct VFatLfnDirEntry {
     sequence_number: u8,
     name1: [u16; 5],
@@ -165,6 +164,8 @@ impl<HANDLE: VFatHandle> Dir<HANDLE> {
             offset: 0,
         };
 
+        //unsafe { kputs(format!("prev_index: {}, seeking from: {:?} forward by {}", prev_index, file_base_pos, prev_index * entry_size).as_str()); }
+
         #[cfg(debug_assertions)]
         println!("prev_index: {}, entry_size: {}, seeking to: {}", prev_index, entry_size, prev_index * entry_size);
         //assert_eq!(prev_index * entry_size, self.meta.size);
@@ -264,6 +265,7 @@ impl<HANDLE: VFatHandle> Dir<HANDLE> {
         let new_entry = vec![entry];
         let entry_size = core::mem::size_of::<VFatRegularDirEntry>();
         let buf = unsafe { new_entry.cast::<u8>() };
+        //unsafe { kputs(format!("Writing chain from {:?} for {}", start, meta.name).as_str()); }
         self.vfat.lock(|vfat: &mut VFat<HANDLE>| -> io::Result<()> {
             vfat.write_chain_pos(start, &buf[0..entry_size])?;
             Ok(())
@@ -361,6 +363,30 @@ impl<HANDLE: VFatHandle> Dir<HANDLE> {
             println!("Ended up at {:?}", start);
         }
         self.create_entry(meta, original_start, start, parent)
+    }
+
+    pub fn invalidate_entries(vfat: &mut VFat<HANDLE>, start: Pos) -> io::Result<()> {
+        use crate::util::SliceExt;
+
+        // Allocate enough room for 21 entries (i.e. file with maximum length name)
+        let mut buf = vec![0u8; 21 * 32];
+        let amt_read = vfat.read_chain_pos(start, &mut buf)?;
+
+        let entries = unsafe { &mut buf.cast_mut::<VFatUnknownDirEntry>() };
+
+        //let mut counter = 0;
+        for entry in entries.iter_mut() {
+            if entry.valid == 0xE5 { continue; } // Already deleted, so skip it
+            //counter += 1;
+            entry.valid = 0xE5;
+            if !entry.attrs.is_lfn() { break; } // Should be the last entry
+        }
+
+        //unsafe { kputs(format!("Start index for deleted file is {:?} & i deleted {} entries", start, counter).as_str()) };
+
+        vfat.write_chain_pos(start, &buf[0..amt_read])?;
+
+        Ok(())
     }
 }
 
@@ -607,7 +633,30 @@ impl<HANDLE: VFatHandle> traits::Dir for Dir<HANDLE> {
         if base_length > 8 || ext_length > 3 || parts.len() > 2 {
             self.create_lfn_entry(meta, start_pos, parent)
         } else {
-            self.create_entry(meta, start_pos, parent)
+            self.create_entry(meta, start_pos, start_pos, parent)
         }
+    }
+
+    fn delete(&mut self) -> io::Result<()> {
+        use crate::traits::Entry;
+
+        let entries_start = match self.entry {
+            Some(Range {start, ..}) => start,
+            None => return ioerr!(NotFound, "Cannot delete a file without a directory entry"),
+        };
+
+        // Check that the only entries are . & ..
+        for entry in self.entries().expect("Couldn't get dir entries") {
+            if entry.name() != "." && entry.name() != ".." {
+                return ioerr!(PermissionDenied, "Can't delete a non-empty directory");
+            }
+        }
+
+        self.vfat.lock(|vfat: &mut VFat<HANDLE>| -> io::Result<()> {
+            // Free the associated data clusters
+            vfat.free_chain(self.start)?;
+            // Then mark all the dir entries as invalid
+            Dir::invalidate_entries(vfat, entries_start)
+        })
     }
 }
