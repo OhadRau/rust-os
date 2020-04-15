@@ -39,6 +39,12 @@ pub struct Pos {
     pub offset: usize,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct Range {
+    pub start: Pos,
+    pub end: Pos,
+}
+
 impl<HANDLE: VFatHandle> VFat<HANDLE> {
     pub fn from<T>(mut device: T) -> Result<HANDLE, Error>
     where

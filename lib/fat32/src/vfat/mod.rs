@@ -15,7 +15,7 @@ pub use self::entry::Entry;
 pub use self::error::Error;
 pub use self::file::File;
 pub use self::metadata::{Attributes, Date, Metadata, Time, Timestamp};
-pub use self::vfat::{VFat, VFatHandle, Pos};
+pub use self::vfat::{VFat, VFatHandle, Pos, Range};
 
 pub(crate) use self::cache::{CachedPartition, Partition};
 pub(crate) use self::cluster::Cluster;

@@ -1,7 +1,7 @@
 use shim::io::{self, SeekFrom};
 use shim::ioerr;
 use crate::traits;
-use crate::vfat::{Cluster, Metadata, VFat, VFatHandle, Pos};
+use crate::vfat::{Cluster, Dir, Metadata, VFat, VFatHandle, Pos, Range};
 use crate::vfat::dir::VFatRegularDirEntry;
 use core::mem;
     
@@ -11,7 +11,7 @@ pub struct File<HANDLE: VFatHandle> {
     pub vfat: HANDLE,
     pub start: Cluster,
     pub meta: Metadata,
-    pub entry: Option<Pos>,
+    pub entry: Option<Range>,
     pub pos: Pos,
     pub amt_read: usize,
 }
@@ -23,7 +23,7 @@ impl<HANDLE: VFatHandle> File<HANDLE> {
         let reg_entry = self.into();
         let reg_entry_buf: &[u8] = unsafe { &mem::transmute::<VFatRegularDirEntry, [u8; 32]>(reg_entry) };
         match self.entry {
-            Some(e) => {
+            Some(Range { end: e, .. }) => {
                 self.vfat.lock(|vfat: &mut VFat<HANDLE>| -> io::Result<usize> {
                     vfat.write_cluster(e.cluster, e.offset, reg_entry_buf)
                 })
