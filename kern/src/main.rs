@@ -30,6 +30,11 @@ use fs::FileSystem;
 pub static ALLOCATOR: Allocator = Allocator::uninitialized();
 pub static FILESYSTEM: FileSystem = FileSystem::uninitialized();
 
+#[no_mangle]
+pub extern fn kputs(s: &str) {
+    kprintln!("{}", s)
+}
+
 fn kmain() -> ! {
     pi::timer::spin_sleep(core::time::Duration::from_millis(500));
     

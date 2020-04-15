@@ -95,6 +95,7 @@ impl<'a> Command<'a> {
             "mkdir" => mkdir(cwd, &self.args[1..]),
             "write_file_test" => write_file_test(cwd),
             "touch" => touch(cwd, &self.args[1..]),
+            "rm" => rm(cwd, &self.args[1..]),
             "append" => append(cwd, &self.args[1..]),
             "edevice" => edevice(cwd, &self.args[1..]),
             path => kprintln!("unknown command: {}", path)
@@ -390,6 +391,34 @@ fn append(cwd: &PathBuf, args: &[&str]) {
     }
     fd.write(&['\n' as u8]).expect("Failed to append newline to file");
 
+    FILESYSTEM.flush();
+}
+
+fn rm(cwd: &PathBuf, args: &[&str]) {
+    use fat32::traits::File;
+
+    if args.len() < 1 {
+        kprintln!("USAGE: rm [filename]+");
+        return;
+    }
+
+    for i in 0..args.len() {
+        let arg_path = PathBuf::from(args[i]);
+        let raw_path = if !arg_path.is_absolute() {
+            cwd.join(arg_path)
+        } else { arg_path };
+        let path = canonicalize(raw_path).expect("Could not canonicalize path");
+        let mut fd = FILESYSTEM.open(path.as_path()).expect("Couldn't open file for writing");
+
+        if fd.is_dir() {
+            match fd.into_dir().expect("Couldn't get dir as dir").delete() {
+                Ok(_) => (),
+                Err(e) => kprintln!("Could not delete directory: {:?}", e),
+            }
+        } else {
+            fd.into_file().expect("Couldn't get file as file").delete().expect("Could not delete file");
+        }
+    }
     FILESYSTEM.flush();
 }
 
