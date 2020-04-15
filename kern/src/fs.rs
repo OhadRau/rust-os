@@ -1,6 +1,7 @@
 pub mod sd;
 pub mod mount_map;
 
+
 use alloc::rc::Rc;
 use core::fmt::{self, Debug};
 use shim::io;
@@ -9,6 +10,7 @@ use shim::path::{Path, PathBuf};
 
 pub use fat32::traits;
 use fat32::vfat::{Dir, Entry, File, VFat, VFatHandle};
+use blockdev::mount::MountOptions;
 
 use self::sd::Sd;
 use self::mount_map::MountMap;
@@ -72,9 +74,12 @@ impl FileSystem {
         }
         let mut mount_map = MountMap::new();
         let sd = Sd::new().expect("Unable to init SD card");
-        match mount_map.mount_root(sd, 2) {
+        match mount_map.mount_root(sd, 2, MountOptions::Normal) {
             Ok(_) => (),
-            Err(_) => panic!("unable to mount root filesystem")
+            Err(e) => {
+                kprintln!("error mounting root FS: {:?}", e);
+                panic!("unable to mount root filesystem");
+            }
         }
         //let fs = VFat::<PiVFatHandle>::from(sd, 1).expect("Unable to init VFat");
         /*match mount_map.mount(&PathBuf::from("/boot"), sd, 1) {
@@ -103,12 +108,12 @@ impl FileSystem {
         }
     }
 
-    pub fn mount(&self, part_num: usize, mount_point: PathBuf) {
+    pub fn mount(&self, part_num: usize, mount_point: PathBuf, options: MountOptions) {
         match &mut *self.0.lock() {
             // passing in a blank Sd struct should work because the 
             // sd descriptor is stored statically in the sd driver
             // this assumes that sd driver has been initialized prior to this call
-            Some(map) => match map.mount(&mount_point, Sd {}, part_num) {
+            Some(map) => match map.mount(&mount_point, Sd {}, part_num, options) {
                 Ok(_) => kprintln!("mount successful"),
                 Err(e) => kprintln!("mount failed: {:?}", e)
             },

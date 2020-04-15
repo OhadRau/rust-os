@@ -1,7 +1,7 @@
 use crate::aes128;
 
 use aes::Aes128;
-use fat32::traits::BlockDevice;
+use blockdev::block_device::BlockDevice;
 use shim::io;
 
 ///

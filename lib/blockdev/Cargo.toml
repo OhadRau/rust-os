@@ -1,23 +1,19 @@
 [package]
-name = "fat32"
+name = "blockdev"
 version = "0.1.0"
 authors = [
     "Sergio Benitez <sb@sergio.bz>",
     "Taesoo Kim <taesoo@gatech.edu>",
     "Yechan Bae <yechan@gatech.edu>",
     "Sujin Park <sujin.park@gatech.edu>",
-    "Mansour Alharthi <mansourah@gatech.edu>"
+    "Mansour Alharthi <mansourah@gatech.edu>",
+    "Eric Frankel <eric.frankel@gatech.edu>"
 ]
 edition = "2018"
 
 [dependencies]
 shim = { path = "../shim", features = ["alloc"] }
-blockdev = { path = "../blockdev", features = ["no_std"] }
-aes128 = { path = "../aes128", features = ["no_std"] }
 hashbrown = "0.6.3"
-
-[dev-dependencies]
-rand = "0.4"
 
 [features]
 no_std = ["shim/no_std"]

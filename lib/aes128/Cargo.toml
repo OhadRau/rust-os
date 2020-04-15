@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 shim = { path = "../shim", features = ["alloc"] }
-fat32 = { path = "../fat32" }
+blockdev = { path = "../blockdev", features = ["no_std"]  }
 aes = "0.3.2"
 
 [features]

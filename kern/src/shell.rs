@@ -6,8 +6,8 @@ use stack_vec::StackVec;
 
 use pi::atags::Atags;
 
-use fat32::traits::{Dir, Entry, FileSystem, Metadata};
-use fat32::traits::BlockDevice;
+use fat32::traits::{Dir, Entry, FileSystem, Metadata, BlockDevice};
+use blockdev::mount::*;
 
 use aes128::aes128::{encrypt, decrypt, gen_cipher};
 use aes128::edevice;
@@ -460,7 +460,7 @@ fn mount(cwd: &PathBuf, part_num_str: &str, mount_point: &str) {
         None => return
     };
 
-    FILESYSTEM.mount(part_num, abs_path);
+    FILESYSTEM.mount(part_num, abs_path, MountOptions::Normal);
 }
 
 fn umount(cwd: &PathBuf, mount_point: &str) {

@@ -9,10 +9,15 @@ use shim::path;
 use shim::path::Path;
 
 use crate::mbr::MasterBootRecord;
-use crate::traits::{BlockDevice, FileSystem};
+use crate::traits::{FileSystem};
+use blockdev::block_device::BlockDevice;
+use blockdev::mount::*;
 use crate::util::SliceExt;
 use crate::vfat::{BiosParameterBlock, CachedPartition, Partition};
 use crate::vfat::{Cluster, Dir, Entry, Error, FatEntry, File, Status};
+use aes128::edevice::EncryptedDevice;
+
+use format;
 
 /// A generic trait that handles a critical section as a closure
 pub trait VFatHandle: Clone + Debug + Send + Sync {
@@ -46,23 +51,59 @@ pub struct Range {
 }
 
 impl<HANDLE: VFatHandle> VFat<HANDLE> {
-    pub fn from<T>(mut device: T, part_num: usize) -> Result<HANDLE, Error>
+    pub fn from<T>(mut device: T, part_num: usize, options: MountOptions) -> Result<HANDLE, Error>
     where
         T: BlockDevice + 'static,
     {
+        // device shouldn't be encrypted, we will use MountOptions
+        // to create an encrypted device that wraps this device
+        // passing the unencrypted device lets us read the MBR 
+        // (which is unencrypted), and provides the backing device 
+        // for the EncryptedDevice
         let mbr = MasterBootRecord::from(&mut device)?;
         let start_sector = match mbr.get_partition_start(part_num) {
             Some(start) => start,
             None => return Err(Error::NotFound)
         };
-        let ebpb = BiosParameterBlock::from(&mut device, start_sector as u64)?;
-        let partition = Partition {
-            start: start_sector as u64,
-            num_sectors: ebpb.num_logical_sectors_ext as u64,
-            sector_size: ebpb.bytes_per_sector as u64,
-        };
-        let cached = CachedPartition::new(device, partition);
 
+        let ebpb;
+        let partition; 
+        let cached;
+        match options {
+            MountOptions::Encrypted(pw) => {
+                // we could change this to use a proper key derivation function
+                // currently just make sure the password <= 16 bytes and pad with zeroes
+                // pw.len() == pw.as_bytes().len() ?
+                if pw.as_bytes().len() > 16 {
+                    return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidData,  "password length limited to 16 bytes")));
+                }
+
+                // create a padded key from the password string
+                let mut key = [0u8; 16];
+                key[..pw.as_bytes().len()].copy_from_slice(pw.as_bytes());
+
+                let mut crypt_device = EncryptedDevice::new(&key, device);
+                ebpb = BiosParameterBlock::from(&mut crypt_device, start_sector as u64)?;
+                partition = Partition {
+                    start: start_sector as u64,
+                    num_sectors: ebpb.num_logical_sectors_ext as u64,
+                    sector_size: ebpb.bytes_per_sector as u64,
+                };
+                cached = CachedPartition::new(crypt_device, partition);
+            },
+            MountOptions::Normal => {
+                ebpb = BiosParameterBlock::from(&mut device, start_sector as u64)?;
+                partition = Partition {
+                    start: start_sector as u64,
+                    num_sectors: ebpb.num_logical_sectors_ext as u64,
+                    sector_size: ebpb.bytes_per_sector as u64,
+                };
+                cached = CachedPartition::new(device, partition);
+
+            }
+        }
+
+        
         let num_fats = ebpb.num_fats;
         let num_sectors = num_fats as u64 * ebpb.sectors_per_fat as u64;
 

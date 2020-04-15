@@ -1,7 +1,9 @@
 use hashbrown::HashMap;
 use fat32::vfat::{VFat, VFatHandle, Error};
-use fat32::traits::{BlockDevice, FileSystem};
+use fat32::traits::{FileSystem};
 use fat32::mbr::MasterBootRecord;
+use blockdev::block_device::BlockDevice;
+use blockdev::mount::*;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use shim::path::{PathBuf, Path};
@@ -28,15 +30,15 @@ impl MountMap {
 
     // we need to mount the root partition before mounting any other ones because all the mountpoints
     // need exist as directories in the FS mounted as /
-    pub fn mount_root<T>(&mut self, mut device: T, part_num: usize) -> io::Result<()>
+    pub fn mount_root<T>(&mut self, mut device: T, part_num: usize, options: MountOptions) -> io::Result<()>
     where T: BlockDevice + 'static, {
-        self.do_mount(&PathBuf::from("/"), device, part_num)
+        self.do_mount(&PathBuf::from("/"), device, part_num, options)
     }
 
     /// mount partition number part_num to mount_point 
     /// pointed to by mount_point. Initializes the VFat
     /// for that partition and inserts it into thee map.
-    pub fn mount<T>(&mut self, mount_point: &PathBuf, mut device: T, part_num: usize) -> io::Result<()>
+    pub fn mount<T>(&mut self, mount_point: &PathBuf, mut device: T, part_num: usize, options: MountOptions) -> io::Result<()>
     // maybe not use static lifetime? vfat uses it
     where T: BlockDevice + 'static, {
         // check that the mount point exists
@@ -49,10 +51,10 @@ impl MountMap {
         }
         
         // mount it
-        self.do_mount(mount_point, device, part_num)
+        self.do_mount(mount_point, device, part_num, options)
     }
 
-    fn do_mount<T>(&mut self, mount_point: &PathBuf, mut device: T, part_num: usize) -> io::Result<()> 
+    fn do_mount<T>(&mut self, mount_point: &PathBuf, mut device: T, part_num: usize, options: MountOptions) -> io::Result<()> 
     where T: BlockDevice + 'static, {
         if self.map.contains_key(&mount_point.clone()) {
             return ioerr!(InvalidData, "mount point already mounted!!");
@@ -64,9 +66,12 @@ impl MountMap {
             }
         }
 
-        let vfat = match VFat::<PiVFatHandle>::from(device, part_num) {
+        let vfat = match VFat::<PiVFatHandle>::from(device, part_num, options) {
             Ok(handle) => handle,
-            Err(e) => return ioerr!(InvalidData, "Error intiailizing filesystem")
+            Err(e) => {
+                kprintln!("error initializing filesystem: {:?}", e);
+                return ioerr!(InvalidData, "Error intiailizing filesystem");
+            }
         };
 
         self.map.insert(mount_point.clone(), Box::new(MapEntry { vfat, part_num }));
