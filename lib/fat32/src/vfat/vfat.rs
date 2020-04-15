@@ -340,6 +340,29 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
     }
 
     //
+    //  * A method to free all the clusters chained from a starting position.
+    //
+    pub fn free_chain(&mut self, mut cluster: Cluster) -> io::Result<()> {
+        use io::{Error, ErrorKind};
+
+        loop {
+            match self.fat_entry(cluster)?.status() {
+                Status::Eoc(_) => {
+                    self.free_cluster(cluster)
+                        .ok_or(Error::new(ErrorKind::NotFound, "Couldnt find cluster to delete"))?;
+                    return Ok(())
+                },
+                Status::Data(next) => {
+                    self.free_cluster(cluster)
+                        .ok_or(Error::new(ErrorKind::NotFound, "Couldnt find cluster to delete"))?;
+                    cluster = next;
+                },
+                _ => return ioerr!(InvalidData, "Couldn't free cluster in chain")
+            }
+        }
+    }
+
+    //
     //  * A method to return a reference to a `FatEntry` for a cluster where the
     //    reference points directly into a cached sector.
     //
