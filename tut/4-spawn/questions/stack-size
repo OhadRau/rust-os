@@ -1,0 +1,15 @@
+A process could increase its stack size by requesting more memory
+from the kernel in some way. One way to do this (which is what most
+kernels do IRL to my knowledge) is allocating a large block of virtual
+memory for the entire kernel. The stack pointer is initialized to the
+highest address and the heap starts from the lowest address, with a lot
+of unused space in between. As the heap and stack grow (i.e. run out of
+space to allocate) they slowly approach each other. This means that a
+process can basically decide how much of the stack vs. heap it needs.
+Since it's virtual memory, we don't actually need to preallocate all of
+these pages in between. To actually grow these segments, a syscall like
+sbrk() is typically used, where the kernel can adjust where the stack
+ends and the heap begins. To perform a syscall, we'd load our arguments
+into x0..x7 (e.g. how much to grow by and whether it's the stack or heap)
+and then perform a syscall with the `sys` instruction and the call number:
+if sbrk was 10, we'd do `sys 10` for example.

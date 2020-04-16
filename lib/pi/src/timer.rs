@@ -37,6 +37,17 @@ impl Timer {
         let microseconds = (upper << 32) | lower;
         Duration::from_micros(microseconds)
     }
+
+    /// Sets up a match in timer 1 to occur `t` duration from now. If
+    /// interrupts for timer 1 are enabled and IRQs are unmasked, then a timer
+    /// interrupt will be issued in `t` duration.
+    pub fn tick_in(&mut self, t: Duration) {
+        let now = self.read().as_micros();
+        let finish = now + t.as_micros();
+        self.registers.COMPARE[1].write(finish as u32);
+        // Clear timer 1 to begin
+        self.registers.CS.or_mask(0b10);
+    }
 }
 
 /// Returns current time.
@@ -52,4 +63,12 @@ pub fn spin_sleep(t: Duration) {
     while timer.read() < end {
         unsafe { asm!("nop" :::: "volatile"); }
     }
+}
+
+/// Sets up a match in timer 1 to occur `t` duration from now. If
+/// interrupts for timer 1 are enabled and IRQs are unmasked, then a timer
+/// interrupt will be issued in `t` duration.
+pub fn tick_in(t: Duration) {
+    let mut timer = Timer::new();
+    timer.tick_in(t);
 }

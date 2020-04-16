@@ -1,0 +1,8 @@
+One advantage of separating these is that we don't have to look thru
+waiting tasks if there are already some ready, and we can only check
+waiting tasks when we've exhausted the ready tasks. This speeds up
+scheduling, but also leads to exhaustion of tasks with more I/O since
+they spend a much longer time in the wait queue than is necessary.
+We could add a task to the ready queue that handles updating the wait
+queue or maybe have the tasks get moved automatically once they're
+ready, but this also leads to some complications.

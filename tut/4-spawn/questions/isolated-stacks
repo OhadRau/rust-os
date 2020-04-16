@@ -1,0 +1,20 @@
+If two processes shared a stack, there's 2 options: their stacks are in
+the same region but with different stack pointers (i.e. they overwrite
+each other's stacks and corrupt that data) or they share the region and
+stack pointer (i.e. there's no issue with overwriting, but it becomes
+unclear what data on the stack belongs to each process, and they may
+lose track of their stack frames b/c they're no longer linearly
+contiguous). This could easily cause crashes for a variety of reasons:
+overflowing the stack too early, too many pops cause the stack to
+underflow, or they read each other's data and return to the wrong
+function/use the wrong addresses -- this could easily cause a segfault
+if they're using different virtual memory and access something outside
+of that. It could also happen by misidentifying data as a pointer and
+deref'ing an invalid address. I think the only way to safely have two
+processes share a stack is by (1) making sure that using the stack is
+atomic and (2) having some identifying info on the stack. E.g. each
+item that gets pushed is tagged with the process ID it belongs to, so
+the other process doesn't accidentally try to read it. Alternatively,
+they could use the stack as a linked list w/ the previous SP rather
+than just an array. However, they would need their own unique SP if
+this occured. 

@@ -1,0 +1,2 @@
+Here, it looks like TTBR select is 34 bits and the level 2 index is
+only 1 bit, hence why we only have 2 entries in the L2 table.

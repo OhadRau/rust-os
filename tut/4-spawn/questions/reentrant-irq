@@ -1,0 +1,17 @@
+Implementing priority over IRQs is a possible reason. For example, if
+the OS makes the timer a higher priority IRQ than the keyboard, it might
+decide to unmask IRQs during the keyboard handler. If a higher priority
+interrupt comes in it can handle it first, then finish up the keyboard
+IRQ. This is useful for designing responsive systems: if one handler
+occurs a lot and takes a lot of system time, it might be useful to put
+user inputs as a higher priority so that the user still feels like the
+system is responding to their commands even if it takes longer to
+process a result.
+
+It could result in a loop if you don't acknowledge the pending IRQs,
+because the pins will still be held high on the interrupt controller
+and you've enabled all interrupts to go through. To get around this
+you could either keep that type of exception masked or acknowledge it
+and add it to some software queue for later processing. The ARM docs
+recommend using a similar method for reentrancy (but using the "call
+stack" of interrupts instead of an actual queue).

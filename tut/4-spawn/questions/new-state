@@ -1,0 +1,8 @@
+The new state will depend on how the switch happens. If a process is
+busy writing I/O, we can perform a context switch & mark it as waiting.
+If it got interrupted by the timer because its quantum has expired,
+then we want to mark it as ready but still perform the context switch.
+Finally, if a process is killed/finished executing we want to switch
+contexts and mark it as dead. Thus, the new state can be each of these
+3 things and they are determined outside of the context switch, so we
+need to pass that info in.

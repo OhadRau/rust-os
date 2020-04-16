@@ -1,0 +1,2 @@
+You would write 0b1101 to PSTATE.DAIF to unmask IRQ interrupts only.
+You could perform this write using msr.

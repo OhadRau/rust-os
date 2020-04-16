@@ -1,0 +1,12 @@
+The output value could very often differ from the input: for example,
+if the input value is 1ms and the time quantum for other processes is
+>1ms, the kernel might choose to sleep for more than 1ms and allow the
+other process to make some more progress. The IRQ handler might
+not also immediately get to the timer interrupt if interrupts are disabled:
+if it's currently handling another interrupt that just came in from the
+keyboard or mouse it could take a little while before it's ready to
+receive the timer interrupt. Finally, the hardware might not be precise
+enough to immediately inform us of the timer interrupt when the clock
+matches.
+
+The most likely case is probably us being busy handling another interrupt.

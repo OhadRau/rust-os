@@ -1,0 +1,4 @@
+If you set the 4th bit (M) of SPSR_ELn to 1, it will switch to AArch32
+(where n is the current exception level). You'd also need to change the
+target PC to 32-bit code because 64-bit code would fail to execute in
+AArch32. To do this, set ELR_ELn to the desired PC.

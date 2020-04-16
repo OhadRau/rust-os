@@ -1,0 +1,5 @@
+The Drop trait is implemented for Stack, which automatically calls
+ALLOCATOR.dealloc() on the memory it uses. When the Process struct
+is dropped, it calls Drop on the stack which triggers this behavior.
+Thus, as soon as the kernel drops the process the memory for the
+stack is automatically freed.

@@ -1,0 +1,9 @@
+The advantage of using x7 to pass the error is that we can use the
+entire register as errors AND not overload any other result registers.
+For example, if we wanted to return PIDs from GET_PID in x0, we'd have
+to change PIDs to always be positive so that they wouldn't get
+interpreted as errors.
+
+The disadvantage is that we lose the x7 register for passing in more
+params, so we have to make syscalls take only 7 params max. This is
+probably fine, but e.g. the NT kernel often uses far more args.

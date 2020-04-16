@@ -1,0 +1,2 @@
+Run mrs <register> CurrentEL to place the current exception level
+in the specified register.

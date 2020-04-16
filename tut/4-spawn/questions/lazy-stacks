@@ -1,0 +1,4 @@
+Since virtual memory is lazily allocated (waits for a page fault in
+order to actually allocate the memory), we could simply set the stack's
+memory to be an arbitrary page in the process's VM. Then, once we try
+to use it for the first time it would actually get allocated.

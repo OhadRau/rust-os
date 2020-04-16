@@ -1,0 +1,11 @@
+It seems to me like a process needs to trust the kernel to a degree.
+Specifically, the kernel is usually assumed to be secure and correct,
+because there is no other alternative to accessing system resources.
+For example, all heap memory comes from the kernel and the userspace
+program has no ability to verify whether it's really using virtual
+memory that's distinct from another process's. It also can't access
+the hard drive (for example) without asking the kernel for it. With
+that said, the process can perform some due diligence to verify
+results it gets from the kernel -- e.g. it can make sure that there's
+no errors that occur during execution and that data it gets back
+isn't corrupted.

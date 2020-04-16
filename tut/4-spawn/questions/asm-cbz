@@ -1,0 +1,4 @@
+Compare & branch on zero: CBZ <register>, <label> jumps to label
+if register == 0. You can use it in a variety of places, like
+early termination of the loop in memcpy when the number of words
+left to copy == 0.

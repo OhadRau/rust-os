@@ -18,8 +18,10 @@ pi = { path = "../lib/pi" }
 shim = { path = "../lib/shim", features = ["no_std", "alloc"] }
 stack-vec = { path = "../lib/stack-vec/" }
 fat32 = { path = "../lib/fat32/", features = ["no_std"] }
+aes128 = { path = "../lib/aes128/", features = ["no_std"] }
+aarch64 = { path = "../lib/aarch64/" }
+kernel_api = { path = "../lib/kernel_api" }
 blockdev = { path = "../lib/blockdev", features = ["no_std"] }
-aes128 = { path = "../lib/aes128", features = ["no_std"] }
 hashbrown = "0.6.3"
 
 [dev-dependencies]

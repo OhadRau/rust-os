@@ -1,0 +1,3 @@
+Set lr to the desired address, then call ret to do pc = lr.
+To set the PC with eret, set ELR_ELx to the target value (where
+ELx is the current exception level).

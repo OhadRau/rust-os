@@ -1,0 +1,15 @@
+You could default to not saving these registers when an exception occurs
+and simply disable SIMD/FP after an exception. Then, if a trap occurs
+from accessing SIMD/FP while the exception is still being handled you
+save the registers, reenable SIMD/FP, let the SIMD/FP code complete and
+finally restore the registers. Essentially, you default to making the
+registers inaccessible while the state hasn't been saved and only save
+the state once it becomes an issue. Since you can know every time the
+CPU tries to access these registers from the trap, there's no issue with
+missing an access to these registers by accident.
+
+To maintain this state, you'd need some kind of exception-in-progress
+flag to tell you what to do if a SIMD/FP trap occurs. In addition, you'd
+want to write impls for the TrapFrame struct that know whether the state
+has been saved -- if not, you can just modify the registers directly and
+if so you would modify the fields within the struct.

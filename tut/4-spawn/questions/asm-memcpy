@@ -1,0 +1,6 @@
+loop: cbz x2, done
+      sub x2, x2, #1
+      ldr x3, [x0], #8 ; Use x3 as tmp for copied data
+      str x3, [x1], #8
+      b loop
+done:

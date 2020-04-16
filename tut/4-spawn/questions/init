@@ -1,0 +1,55 @@
+_start reads the [7:0] bits (Aff0) of MPIDR_EL1 to see which core
+the code is executing on. Assuming that core is 0, it sets the
+stack pointer to KERN_STACK_BASE (0x80_000) & calls kinit();
+
+kinit() first calls to zeros_bss, which writes 0s to the entire
+BSS section of the current executable. BSS refers to the uninitialized
+portion of program memory, so zeroing it all out just means that all
+values in the kernel that aren't explicitly initialized will be set to
+0 before execeution begins.
+
+Next, kinit() calls switch_to_el2(). This checks the current exception
+level and if it's == 3, switches to EL2. To do this, it first sets up
+the SCR_EL3 register (secure configuration register). It enables the NS
+bit (0) to indicate that exception levels lower than EL3 are non-secure,
+so they can't access secure memory from EL3. It also disables secure
+monitor calls at EL1 & above (by setting SMD/bit 7), which means that
+the code can't call up to the secure monitor (EL3). Next, it enables
+calls to the hypervisor (AKA EL2) at EL3/2/1 by setting HCE (bit 8).
+The RW bit (10) is then set to set the execution state of lower exception
+levels (i.e. put EL2..EL0 in AArch64 by default). Finally, bits [5:4]
+AKA RES1 (reserved 1) are set. Since these are RES1 we need to set them
+all to high. SPSR_EL3's DIAF bits are all set to enable all interrupt
+mask bits and we also set M & 0b1001 to enter an invalid state. These
+determine the AArch32 mode that caused an exception, so this could mean
+that we want to set an invalid state if AArch32 code triggers an exception
+(since we shouldn't allow AArch32 to execute). Finally, this code eret's
+to itself to lower the EL to EL2 (and break because the check is now
+successful).
+
+After switch_to_el2(), it calls swtich_to_el1(), which first checks if
+we're currently in EL2. If so, it sets EL1's stack pointer to the SP
+register's value (setting up the kernel's stack pointer). We then make
+sure that CNTHCTL_EL2's EL0VCTEN and EL0PCTEN bits are set: this traps
+EL0's accesses to the frequency/virtual count registers into EL2 and
+does the same for accesses to the frequency/physical count registers
+for the system timer. We then set the virtual offset for the timer to
+0 to reset the count. The hypervisor configuration register (HCR) is setup
+with RW (bit 31) to use AArch64's 64-bit register width and RES1 is set
+high (bit 1) to enable set/way invalidation override. It then clears the
+architectural feature trap register for EL2, CPTR_EL2, which disables
+trapping to CPACR, SIMD, & Floating-Point registers. Then, we set
+CPACR_EL1's bits 20-21 to disable trapping instructions for SIMD and
+floating point to EL1 when executed from EL0/EL1. Then, SCTLR_EL1
+(system control register)'s res1 bits are set to high (bits 11, 20, 22-23,
+and 28-29). New exception vectors are then configured to handle exceptions
+at EL1, and finally we go into EL1. To do this, we enable all DAIF bits
+for SPSR_EL2 to enable all exceptions to go to EL2 and we set M (bits[0:3])
+to 0b0101 to enable an invalid state for AArch32 exceptions from EL1 
+(since EL1 is not running in AArch32). It's useful to use a different
+value here than when switching to EL2 so that we can tell by the state
+where the error happened. Finally, we just call back into switch_to_el1()
+with eret.
+
+Once we're in EL1, we can call into kmain() to execute the actual kernel
+code.

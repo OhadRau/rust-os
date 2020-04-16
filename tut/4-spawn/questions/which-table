@@ -1,0 +1,10 @@
+The MMU determines which table to use based on the most-significant bits
+of the virtual address. If they're all 0s, it'll use TTBR0_EL1. If
+they're all 1s, it'll use TTBR1_EL1. If it's something in between the
+MMU will issue a fault, since it can't handle virtual memory between
+these two regions. If we choose to map 1:1 in the kernel, we need to
+use lower memory because certain MMIO devices are defined to operate
+within a higher memory range, which is why the TTBR1 belongs to the
+kernel in this case. The specific address is chosen since bits 0..28
+are all that's needed for a level 3 page table. This translates to
+2^29, so there's only 1 bit used in the L2 table's lookup.

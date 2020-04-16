@@ -85,6 +85,25 @@ impl<'a> Command<'a> {
                     kprintln!("{:?}", v);
                 }
             },
+            "sleep" => {
+                use core::time::Duration;
+                if self.args.len() > 1 {
+                    let span = match self.args[1].parse() {
+                        Ok(span) => span,
+                        Err(_) => {
+                            kprintln!("Couldn't parse time");
+                            return
+                        }
+                    };
+                    let slept = kernel_api::syscall::sleep(Duration::from_millis(span));
+                    match slept {
+                        Ok(time) => kprintln!("Slept {:?}", time),
+                        Err(e) => kprintln!("Couldn't sleep: {:?}", e),
+                    }
+                } else {
+                    kprintln!("Must pass in # of millis to sleep");
+                }
+            },
             "pwd" => pwd(cwd),
             "cd" => { 
                 if self.args.len() > 1 {
@@ -572,7 +591,7 @@ fn encrypt_sectors(first: u64, last: u64, key: &str) -> Result<(), ()> {
 
 /// Starts a shell using `prefix` as the prefix for each line. This function
 /// never returns.
-pub fn shell(prefix: &str) -> ! {
+pub fn shell(prefix: &str) {
     use core::str;
 
     let mut path_buf = PathBuf::from("/");
@@ -605,7 +624,12 @@ pub fn shell(prefix: &str) -> ! {
         match Command::parse(buf_str, &mut args_buf) {
             Err(Error::Empty) => (),
             Err(Error::TooManyArgs) => kprintln!("error: too many arguments"),
-            Ok(cmd) => cmd.eval(&mut path_buf)
+            Ok(cmd) =>
+                if cmd.args[0] == "exit" {
+                    return
+                } else {
+                    cmd.eval(&mut path_buf)
+                }
         }
     }
 }

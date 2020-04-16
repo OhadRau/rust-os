@@ -1,0 +1,5 @@
+The IRQ for the next (higher) level (assuming the timer isn't configured
+for fast interrupts thru FIQ). The address of the exception vector that
+gets called is VBAR_EL1+0x480 since it's running AArch64 and originating
+from a lower level (EL0) and going up to EL1 (the kernel). Note that this
+is a virtual address.

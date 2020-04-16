@@ -1,0 +1,11 @@
+These Derefs allow us to essentially "cast" a KernPageTable or a
+UserPageTable into a PageTable. This is implementing something
+similar to OOP inheritance, where KernPageTable and UserPageTable
+extend PageTable and we're calling functions (such as .get_baddr())
+on the underlying PageTable. This also allows us to make calls to
+locate(), is_valid(), set_entry(), etc. functions from PageTable
+on either kind of PageTable thanks to the way that Rust automatically
+derefs on method calls. The reason this is needed is that we can't
+have multiple impls for the same type and there's no type inheritance
+so we're essentially simulating subtyping relationships using these
+Deref traits.

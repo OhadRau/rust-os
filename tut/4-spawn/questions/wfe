@@ -1,0 +1,5 @@
+It's ok to WFE when no process is ready because a waiting process can
+only become ready by receiving an event. Specifically, waiting means
+that the process is waiting on some I/O that returns with an interrupt
+and this will trigger the WFE to end. If every single process is waiting,
+the only thing we can really do is WFE.
