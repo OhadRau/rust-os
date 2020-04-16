@@ -99,7 +99,7 @@ impl<'a> Command<'a> {
             "rm" => rm(cwd, &self.args[1..]),
             "append" => append(cwd, &self.args[1..]),
             "lsblk" => FILESYSTEM.lsblk(),
-            "mount" => mount(cwd, &self.args[1], &self.args[2]),
+            "mount" => mount(cwd, &self.args[1..]),
             "umount" => umount(cwd, &self.args[1]),
             "mkcrypt" => encrypt_part(&self.args[1..]),
             path => kprintln!("unknown command: {}", path)
@@ -391,8 +391,12 @@ fn rm(cwd: &PathBuf, args: &[&str]) {
     }
 }
 
-fn mount(cwd: &PathBuf, part_num_str: &str, mount_point: &str) {
-    let part_num: usize = match part_num_str.parse() {
+fn mount(cwd: &PathBuf, args: &[&str]) {
+    if args.len() < 2 {
+        kprintln!("not enough arguments!\nusage: mount <part> <path> -p <pw>");
+        return;
+    }
+    let part_num: usize = match args[0].parse() {
         Ok(num) => num,
         Err(_) => {
             kprintln!("invalid partition number");
@@ -400,12 +404,26 @@ fn mount(cwd: &PathBuf, part_num_str: &str, mount_point: &str) {
         }
     };
 
-    let abs_path = match get_abs_path(cwd, mount_point) {
+    let abs_path = match get_abs_path(cwd, args[1]) {
         Some(p) => p,
         None => return
     };
 
-    FILESYSTEM.mount(part_num, abs_path, MountOptions::Normal);
+    let mut mount_opts = MountOptions::Normal;
+    if args.len() > 2 && args.len() != 4 {
+        kprintln!("incorrect arguments!\nusage: mount <part> <path> -p <pw>");
+        return;
+    } else if args.len() > 2 {
+        if args[2].eq_ignore_ascii_case("-p") {
+            mount_opts = MountOptions::Encrypted(String::from(args[3]));
+        } else {
+            kprintln!("unknown flag: {}", args[2]);
+            return;
+        }
+    }
+
+
+    FILESYSTEM.mount(part_num, abs_path, mount_opts);
 }
 
 fn umount(cwd: &PathBuf, mount_point: &str) {

@@ -77,8 +77,8 @@ impl FileSystem {
 
         // mount the root FS
         let mut mount_map = MountMap::new();
-        match mount_map.mount_root(sd, 2, MountOptions::Encrypted(String::from("cs3210!"))) {
-        //match mount_map.mount_root(sd, 1, MountOptions::Normal) {
+        //match mount_map.mount_root(sd, 2, MountOptions::Encrypted(String::from("cs3210!"))) {
+        match mount_map.mount_root(sd, 1, MountOptions::Normal) {
             Ok(_) => (),
             Err(e) => {
                 kprintln!("error mounting root FS: {:?}", e);
