@@ -268,22 +268,10 @@ fn get_abs_path(cwd: &PathBuf, dir_arg: &str) -> Option<PathBuf> {
 }
 
 fn mkdir(cwd: &PathBuf, args: &[&str]) {
-    /*let abs_path = match canonicalize(cwd.clone()) {
-        Ok(p) => p,
-        Err(_) => {
-            kprintln!("bad path in mkdir");
-            return;
-        }
-    };*/
-
     let abs_path = match get_abs_path(cwd, args[0]) {
         Some(p) => p,
         None => return
     };
-    /*if !abs_path.is_dir() {
-        kprintln!("{}: not a directory", abs_path.to_str().unwrap());
-        return;
-    }*/
 
     let dir_metadata = fat32::vfat::Metadata {
         name: String::from(abs_path.file_name().unwrap().to_str().unwrap()),
@@ -291,7 +279,7 @@ fn mkdir(cwd: &PathBuf, args: &[&str]) {
         accessed: fat32::vfat::Timestamp::default(),
         modified: fat32::vfat::Timestamp::default(),
         attributes: fat32::vfat::Attributes::default_dir(), // directory 
-        size: 1024
+        size: 0
     };
 
     let path_clone = abs_path.clone();
@@ -389,7 +377,7 @@ fn rm(cwd: &PathBuf, args: &[&str]) {
             cwd.join(arg_path)
         } else { arg_path };
         let path = canonicalize(raw_path).expect("Could not canonicalize path");
-        let mut fd = FILESYSTEM.open(path.as_path()).expect("Couldn't open file for writing");
+        let fd = FILESYSTEM.open(path.as_path()).expect("Couldn't open file for writing");
 
         if fd.is_dir() {
             match fd.into_dir().expect("Couldn't get dir as dir").delete() {
@@ -399,8 +387,8 @@ fn rm(cwd: &PathBuf, args: &[&str]) {
         } else {
             fd.into_file().expect("Couldn't get file as file").delete().expect("Could not delete file");
         }
+        FILESYSTEM.flush_fs(path);
     }
-    FILESYSTEM.flush();
 }
 
 fn mount(cwd: &PathBuf, part_num_str: &str, mount_point: &str) {
