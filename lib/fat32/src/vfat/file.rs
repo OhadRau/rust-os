@@ -1,7 +1,7 @@
 use shim::io::{self, SeekFrom};
 use shim::ioerr;
 use crate::traits;
-use crate::vfat::{Cluster, Metadata, VFat, VFatHandle, Pos};
+use crate::vfat::{Cluster, Dir, Metadata, VFat, VFatHandle, Pos, Range};
 use crate::vfat::dir::VFatRegularDirEntry;
 use core::mem;
     
@@ -11,7 +11,7 @@ pub struct File<HANDLE: VFatHandle> {
     pub vfat: HANDLE,
     pub start: Cluster,
     pub meta: Metadata,
-    pub entry: Option<Pos>,
+    pub entry: Option<Range>,
     pub pos: Pos,
     pub amt_read: usize,
 }
@@ -23,7 +23,7 @@ impl<HANDLE: VFatHandle> File<HANDLE> {
         let reg_entry = self.into();
         let reg_entry_buf: &[u8] = unsafe { &mem::transmute::<VFatRegularDirEntry, [u8; 32]>(reg_entry) };
         match self.entry {
-            Some(e) => {
+            Some(Range { end: e, .. }) => {
                 self.vfat.lock(|vfat: &mut VFat<HANDLE>| -> io::Result<usize> {
                     vfat.write_cluster(e.cluster, e.offset, reg_entry_buf)
                 })
@@ -111,6 +111,19 @@ impl<HANDLE: VFatHandle> traits::File for File<HANDLE> {
     /// Returns the size of the file in bytes.
     fn size(&self) -> u64 {
         self.meta.size as u64
+    }
+
+    fn delete(&mut self) -> io::Result<()> {
+        let entries_start = match self.entry {
+            Some(Range {start, ..}) => start,
+            None => return ioerr!(NotFound, "Cannot delete a file without a directory entry"),
+        };
+        self.vfat.lock(|vfat: &mut VFat<HANDLE>| -> io::Result<()> {
+            // Free all the allocated space for the file's contents
+            if self.size() > 0 { vfat.free_chain(self.start)?; }
+            // Then mark all the dir entries as invalid
+            Dir::invalidate_entries(vfat, entries_start)
+        })
     }
 }
 

@@ -9,18 +9,22 @@ use shim::ioerr;
 use crate::traits;
 use crate::util::VecExt;
 use crate::vfat::{Attributes, VFat, Date, Metadata, Time, Timestamp};
-use crate::vfat::{Cluster, Entry, File, VFatHandle, Pos};
+use crate::vfat::{Cluster, Entry, File, VFatHandle, Pos, Range};
+
+/*extern "C" {
+    fn kputs(s: &str);
+}*/
 
 #[derive(Debug)]
 pub struct Dir<HANDLE: VFatHandle> {
     pub vfat: HANDLE,
     pub start: Cluster,
     pub meta: Metadata,
-    pub entry: Option<Pos>,
+    pub entry: Option<Range>,
 }
 
 #[repr(C, packed)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct VFatRegularDirEntry {
     name: [u8; 8],
     ext:  [u8; 3],
@@ -55,9 +59,8 @@ impl<HANDLE: VFatHandle> From<&File<HANDLE>> for VFatRegularDirEntry {
     }
 }
 
-
 #[repr(C, packed)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct VFatLfnDirEntry {
     sequence_number: u8,
     name1: [u16; 5],
@@ -161,6 +164,8 @@ impl<HANDLE: VFatHandle> Dir<HANDLE> {
             offset: 0,
         };
 
+        //unsafe { kputs(format!("prev_index: {}, seeking from: {:?} forward by {}", prev_index, file_base_pos, prev_index * entry_size).as_str()); }
+
         #[cfg(debug_assertions)]
         println!("prev_index: {}, entry_size: {}, seeking to: {}", prev_index, entry_size, prev_index * entry_size);
         //assert_eq!(prev_index * entry_size, self.meta.size);
@@ -223,7 +228,7 @@ impl<HANDLE: VFatHandle> Dir<HANDLE> {
         buffer
     }
 
-    fn create_entry(&mut self, meta: Metadata, start: Pos, parent: Option<Cluster>) -> io::Result<Entry<HANDLE>> {
+    fn create_entry(&mut self, meta: Metadata, original_start: Pos, start: Pos, parent: Option<Cluster>) -> io::Result<Entry<HANDLE>> {
         use crate::vfat::Status;
         use io::{Error, ErrorKind};
 
@@ -260,6 +265,7 @@ impl<HANDLE: VFatHandle> Dir<HANDLE> {
         let new_entry = vec![entry];
         let entry_size = core::mem::size_of::<VFatRegularDirEntry>();
         let buf = unsafe { new_entry.cast::<u8>() };
+        //unsafe { kputs(format!("Writing chain from {:?} for {}", start, meta.name).as_str()); }
         self.vfat.lock(|vfat: &mut VFat<HANDLE>| -> io::Result<()> {
             vfat.write_chain_pos(start, &buf[0..entry_size])?;
             Ok(())
@@ -270,7 +276,7 @@ impl<HANDLE: VFatHandle> Dir<HANDLE> {
                 vfat: self.vfat.clone(),
                 start: location,
                 meta,
-                entry: Some(start),
+                entry: Some(Range { start: original_start, end: start }),
             };
             Ok(Entry::Dir(dir))
         } else {
@@ -278,7 +284,7 @@ impl<HANDLE: VFatHandle> Dir<HANDLE> {
                 vfat: self.vfat.clone(),
                 start: location,
                 meta,
-                entry: Some(start),
+                entry: Some(Range { start: original_start, end: start }),
                 pos: Pos {
                     cluster: location,
                     offset: 0,
@@ -292,6 +298,8 @@ impl<HANDLE: VFatHandle> Dir<HANDLE> {
     fn create_lfn_entry(&mut self, meta: Metadata, mut start: Pos, parent: Option<Cluster>) -> io::Result<Entry<HANDLE>> {
         use core::cmp::min;
         use crate::util::SliceExt;
+
+        let original_start = start;
 
         // Calculate the checksum for the name
         let checksum = get_checksum(meta.name.clone());
@@ -354,7 +362,31 @@ impl<HANDLE: VFatHandle> Dir<HANDLE> {
             #[cfg(debug_assertions)]
             println!("Ended up at {:?}", start);
         }
-        self.create_entry(meta, start, parent)
+        self.create_entry(meta, original_start, start, parent)
+    }
+
+    pub fn invalidate_entries(vfat: &mut VFat<HANDLE>, start: Pos) -> io::Result<()> {
+        use crate::util::SliceExt;
+
+        // Allocate enough room for 21 entries (i.e. file with maximum length name)
+        let mut buf = vec![0u8; 21 * 32];
+        let amt_read = vfat.read_chain_pos(start, &mut buf)?;
+
+        let entries = unsafe { &mut buf.cast_mut::<VFatUnknownDirEntry>() };
+
+        //let mut counter = 0;
+        for entry in entries.iter_mut() {
+            if entry.valid == 0xE5 { continue; } // Already deleted, so skip it
+            //counter += 1;
+            entry.valid = 0xE5;
+            if !entry.attrs.is_lfn() { break; } // Should be the last entry
+        }
+
+        //unsafe { kputs(format!("Start index for deleted file is {:?} & i deleted {} entries", start, counter).as_str()) };
+
+        vfat.write_chain_pos(start, &buf[0..amt_read])?;
+
+        Ok(())
     }
 }
 
@@ -366,11 +398,13 @@ pub struct DirIter<HANDLE: VFatHandle> {
 }
 
 impl<HANDLE: VFatHandle> DirIter<HANDLE> {
-    fn get_meta(&mut self) -> Option<(Metadata, Cluster)> {
+    // Returns the metadata for the file, the starting cluster, & the starting index of the entry
+    fn get_meta(&mut self) -> Option<(Metadata, Cluster, usize)> {
         // Max 256 characters in filename but we add 13 chars at a time...
         // 260 is the smallest multiple of 13 that can fit 255 chars
         let mut name_sequence = [0u16; 260];
         let mut long_name = false;
+        let mut start_index = self.index;
 
         loop {
             #[cfg(debug_assertions)]
@@ -385,14 +419,19 @@ impl<HANDLE: VFatHandle> DirIter<HANDLE> {
             let unknown = unsafe { entry.unknown };
 
             if unknown.valid == 0x00 {
+                //unsafe { kputs("INVALID"); }
+
                 #[cfg(debug_assertions)]
                 println!("It's invalid");
                 return None
             } else if unknown.valid == 0xE5 {
+                //unsafe { kputs("DELETED"); }
+
                 #[cfg(debug_assertions)]
                 println!("It's deleted");
                 long_name = false;
                 name_sequence = [0u16; 260];
+                start_index += 1;
                 continue
             }
 
@@ -403,6 +442,8 @@ impl<HANDLE: VFatHandle> DirIter<HANDLE> {
 
             if is_lfn {
                 let lfn = unsafe { entry.long_filename };
+
+                //unsafe { kputs(format!("LFN: {:?}", lfn).as_str()); }
                 
                 #[cfg(debug_assertions)]
                 println!("Found checksum: {}", lfn.checksum);
@@ -415,6 +456,8 @@ impl<HANDLE: VFatHandle> DirIter<HANDLE> {
                 long_name = true;
             } else {
                 let reg = unsafe { entry.regular };
+
+                //unsafe { kputs(format!("REG: {:?}", reg).as_str()); }
                 
                 let name = if long_name {
                     let mut end_index = 0;
@@ -458,7 +501,7 @@ impl<HANDLE: VFatHandle> DirIter<HANDLE> {
                     size,
                 };
 
-                return Some((meta, cluster))
+                return Some((meta, cluster, start_index))
             }
         }
     }
@@ -468,19 +511,30 @@ impl<HANDLE: VFatHandle> Iterator for DirIter<HANDLE> {
     type Item = Entry<HANDLE>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let (meta, cluster) = self.get_meta()?;
-        let original_index = self.index - 1;
+        let (meta, cluster, first_index) = self.get_meta()?;
+        let new_index = self.index - 1;
+
         let entry_size = core::mem::size_of::<VFatUnknownDirEntry>();
         let base_pos = Pos { cluster: self.parent, offset: 0 };
-        let entry = self.vfat.lock(|vfat: &mut VFat<HANDLE>| -> Option<Pos> {
-            vfat.seek(base_pos, original_index * entry_size).ok()
+        let first_entry = self.vfat.lock(|vfat: &mut VFat<HANDLE>| -> Option<Pos> {
+            vfat.seek(base_pos, first_index * entry_size).ok()
         });
+        let entry = self.vfat.lock(|vfat: &mut VFat<HANDLE>| -> Option<Pos> {
+            vfat.seek(base_pos, new_index * entry_size).ok()
+        });
+
+        //unsafe { kputs(format!("File {} starts @ {:?} ({}) and ends at {:?} ({})", meta.name, first_entry, first_index, entry, new_index).as_str()) }
+
+        let range = match (first_entry, entry) {
+            (Some(first), Some(last)) => Some(Range { start: first, end: last }),
+            (_, _) => None
+        };
         if meta.attributes.is_dir() {
             let dir = Dir {
                 vfat: self.vfat.clone(),
                 start: cluster,
                 meta,
-                entry,
+                entry: range,
             };
             Some(Entry::Dir(dir))
         } else {
@@ -488,7 +542,7 @@ impl<HANDLE: VFatHandle> Iterator for DirIter<HANDLE> {
                 vfat: self.vfat.clone(),
                 start: cluster,
                 meta,
-                entry,
+                entry: range,
                 pos: Pos {
                     cluster,
                     offset: 0,
@@ -538,9 +592,12 @@ impl<HANDLE: VFatHandle> traits::Dir for Dir<HANDLE> {
             Ok(())
         })?;
 
+        //unsafe { kputs("Searching for entry"); }
+
         let entries = unsafe { buf.cast::<VFatUnknownDirEntry>() };
         while end_index < entries.len() && entries[end_index].valid != 0x00 {
             end_index += 1;
+            //unsafe { kputs("Found valid..."); }
         }
 
         let start_pos =
@@ -550,9 +607,11 @@ impl<HANDLE: VFatHandle> traits::Dir for Dir<HANDLE> {
                     offset: 0,
                 }
             } else {
+                //unsafe { kputs("End was not 0!"); }
                 let prev_pos = end_index;
                 self.get_start_pos(prev_pos)?
             };
+        //unsafe { kputs(&format!("Start position: {:?} (idx: {})", start_pos, end_index)); }
         #[cfg(debug_assertions)]
         println!("Start position: {:?}", start_pos);
 
@@ -574,7 +633,30 @@ impl<HANDLE: VFatHandle> traits::Dir for Dir<HANDLE> {
         if base_length > 8 || ext_length > 3 || parts.len() > 2 {
             self.create_lfn_entry(meta, start_pos, parent)
         } else {
-            self.create_entry(meta, start_pos, parent)
+            self.create_entry(meta, start_pos, start_pos, parent)
         }
+    }
+
+    fn delete(&mut self) -> io::Result<()> {
+        use crate::traits::Entry;
+
+        let entries_start = match self.entry {
+            Some(Range {start, ..}) => start,
+            None => return ioerr!(NotFound, "Cannot delete a file without a directory entry"),
+        };
+
+        // Check that the only entries are . & ..
+        for entry in self.entries().expect("Couldn't get dir entries") {
+            if entry.name() != "." && entry.name() != ".." {
+                return ioerr!(PermissionDenied, "Can't delete a non-empty directory");
+            }
+        }
+
+        self.vfat.lock(|vfat: &mut VFat<HANDLE>| -> io::Result<()> {
+            // Free the associated data clusters
+            vfat.free_chain(self.start)?;
+            // Then mark all the dir entries as invalid
+            Dir::invalidate_entries(vfat, entries_start)
+        })
     }
 }

@@ -39,6 +39,12 @@ pub struct Pos {
     pub offset: usize,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct Range {
+    pub start: Pos,
+    pub end: Pos,
+}
+
 impl<HANDLE: VFatHandle> VFat<HANDLE> {
     pub fn from<T>(mut device: T) -> Result<HANDLE, Error>
     where
@@ -187,7 +193,8 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
             (self.bytes_per_sector as usize) * (self.sectors_per_cluster as usize);
         
         while offset >= cluster_size {
-            offset -= cluster_size;
+            // AVOID UNDERFLOW! (512 - 1024) as usize > 0usize
+            offset = offset.saturating_sub(cluster_size);
             match self.fat_entry(base.cluster)?.status() {
                 Status::Eoc(_) => {
                     if offset > 0 {
@@ -201,7 +208,7 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
                 _ => return ioerr!(InvalidData, "Couldn't read cluster in chain")
             }
         }
-        base.offset = offset;
+        base.offset += offset;
         Ok(base)
     }
 
@@ -210,16 +217,15 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
             (self.bytes_per_sector as usize) * (self.sectors_per_cluster as usize);
 
         while offset >= cluster_size {
-            offset -= cluster_size;
+            // AVOID UNDERFLOW! (512 - 1024) as usize > 0usize
+            offset = offset.saturating_sub(cluster_size);
             match self.fat_entry(base.cluster)?.status() {
                 Status::Eoc(_) => {
-                    if offset > 0 {
-                        let next_cluster =
-                            self.alloc_cluster(Status::Eoc(0)).expect("Couldn't allocate next cluster");
-                        self.set_fat_entry(base.cluster, Status::Data(next_cluster)).expect("Couldn't update FAT entry");
-                        base.cluster = next_cluster;
-                        base.offset = 0;
-                    }
+                    let next_cluster =
+                        self.alloc_cluster(Status::Eoc(0)).expect("Couldn't allocate next cluster");
+                    self.set_fat_entry(base.cluster, Status::Data(next_cluster)).expect("Couldn't update FAT entry");
+                    base.cluster = next_cluster;
+                    base.offset = 0;
                 },
                 Status::Data(next) => {
                     base.cluster = next;
@@ -329,6 +335,29 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
                     pos.cluster = next;
                 },
                 _ => return ioerr!(InvalidData, "Couldn't write cluster in chain")
+            }
+        }
+    }
+
+    //
+    //  * A method to free all the clusters chained from a starting position.
+    //
+    pub fn free_chain(&mut self, mut cluster: Cluster) -> io::Result<()> {
+        use io::{Error, ErrorKind};
+
+        loop {
+            match self.fat_entry(cluster)?.status() {
+                Status::Eoc(_) => {
+                    self.free_cluster(cluster)
+                        .ok_or(Error::new(ErrorKind::NotFound, "Couldnt find cluster to delete"))?;
+                    return Ok(())
+                },
+                Status::Data(next) => {
+                    self.free_cluster(cluster)
+                        .ok_or(Error::new(ErrorKind::NotFound, "Couldnt find cluster to delete"))?;
+                    cluster = next;
+                },
+                _ => return ioerr!(InvalidData, "Couldn't free cluster in chain")
             }
         }
     }

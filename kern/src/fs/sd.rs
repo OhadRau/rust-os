@@ -97,6 +97,9 @@ impl BlockDevice for Sd {
 
         let buf_ptr = buf.clone().as_ptr(); 
 
+        //panic!("write");
+        kprintln!("writing sector {}", n);
+        //assert!((buf_ptr as u64) % 8 == 0, "buf not aligned!!");
         // multiply n by 512 bc sdTransferBlocks expects a byte address
         match unsafe { sdTransferBlocks(n * 512, 1, buf_ptr as *mut u8, 1) } {
             0 => {
