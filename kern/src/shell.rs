@@ -413,8 +413,15 @@ fn umount(cwd: &PathBuf, mount_point: &str) {
         Some(p) => p,
         None => return
     };
-
-    FILESYSTEM.unmount(abs_path);
+    
+    if abs_path.to_str().unwrap().eq_ignore_ascii_case("/") {
+        kprintln!("don't unmount root!!!");
+    }  else {
+        match FILESYSTEM.unmount(PathBuf::from(abs_path.to_str().unwrap())) {
+            Ok(_) => { kprintln!("unmounted {}", abs_path.to_str().unwrap()); },
+            Err(_) => ()
+        }
+    }
 }
 
 // backs the mkcrypt command

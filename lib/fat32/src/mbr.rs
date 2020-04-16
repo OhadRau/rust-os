@@ -1,6 +1,7 @@
 use core::fmt;
 use shim::const_assert_size;
 use shim::io;
+use core::mem;
 
 use crate::traits::BlockDevice;
 
@@ -59,6 +60,12 @@ pub struct MasterBootRecord {
     pub disk_id: [u8; 10],
     pub partition_table: [PartitionEntry; 4],
     pub signature: [u8; 2],
+}
+
+impl Default for MasterBootRecord {
+    fn default() -> MasterBootRecord {
+        unsafe { mem::transmute::<[u8; 512], MasterBootRecord>([0u8; 512])}
+    }
 }
 
 // implement Debug for MasterBootRecord
@@ -131,7 +138,7 @@ impl MasterBootRecord {
 
     // gonna do 1-indexed for now
     // returns None if the selected partition is not vfat or is out of range
-    pub fn get_partition_start(&self, part_num: usize ) -> Option<u32> {
+    pub fn get_partition_start(&self, part_num: usize) -> Option<u32> {
         if part_num < 1 || part_num > 4 {
             return None;
         }
@@ -143,5 +150,13 @@ impl MasterBootRecord {
         } else {
             None
         }
+    }
+
+    pub fn get_partition_size(&self, part_num: usize) -> Option<u64> {
+        if part_num < 1 || part_num > 4 {
+            return None;
+        }
+
+        Some(self.partition_table[part_num - 1].total_sectors as u64 * 512)
     }
 }

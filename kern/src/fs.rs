@@ -120,10 +120,13 @@ impl FileSystem {
         }
     }
 
-    pub fn unmount(&self, mount_point: PathBuf) {
+    pub fn unmount(&self, mount_point: PathBuf) -> Result<(), ()>{
         match &mut *self.0.lock() {
             Some(map) => map.unmount(&mount_point),
-            None => kprintln!("no map exists")
+            None => {
+                kprintln!("no map exists");
+                Err(())
+            }
         }
     }
 }

@@ -9,28 +9,38 @@ use shim::path::{PathBuf, Path};
 use shim::{ioerr, io};
 use crate::fs::PiVFatHandle;
 use crate::console::kprintln;
+use fat32::mbr::MasterBootRecord;
 use core::fmt;
 
 pub struct MapEntry {
     vfat: PiVFatHandle,
     part_num: usize,
+    options: MountOptions
 }
 
 pub struct MountMap { 
-    map: HashMap<PathBuf, Box<MapEntry>>
+    map: HashMap<PathBuf, Box<MapEntry>>,
+    mbr: MasterBootRecord,
 }
 
 impl MountMap {
     pub fn new() -> MountMap {
         MountMap {
-            map: HashMap::new()
+            map: HashMap::new(),
+            mbr: MasterBootRecord::default()
         }
     }
 
     // we need to mount the root partition before mounting any other ones because all the mountpoints
     // need exist as directories in the FS mounted as /
-    pub fn mount_root<T>(&mut self, device: T, part_num: usize, options: MountOptions) -> io::Result<()>
+    pub fn mount_root<T>(&mut self, mut device: T, part_num: usize, options: MountOptions) -> io::Result<()>
     where T: BlockDevice + 'static, {
+        // at this point device is a real device, not encrypted
+        let mbr = match MasterBootRecord::from(&mut device) {
+            Ok(mbr) => mbr,
+            Err(_) => panic!("unable to parse mbr while mounting root FS!")
+        };
+        self.mbr = mbr;
         self.do_mount(&PathBuf::from("/"), device, part_num, options)
     }
 
@@ -65,7 +75,7 @@ impl MountMap {
             }
         }
 
-        let vfat = match VFat::<PiVFatHandle>::from(device, part_num, options) {
+        let vfat = match VFat::<PiVFatHandle>::from(device, part_num, options.clone()) {
             Ok(handle) => handle,
             Err(e) => {
                 kprintln!("error initializing filesystem: {:?}", e);
@@ -73,18 +83,24 @@ impl MountMap {
             }
         };
 
-        self.map.insert(mount_point.clone(), Box::new(MapEntry { vfat, part_num }));
+        self.map.insert(mount_point.clone(), Box::new(MapEntry { vfat, part_num, options }));
         Ok(())
 
     }
 
     /// unmounts the filesystem pointed to by mount_point
     /// flushes the filesystem and then drops it
-    pub fn unmount(&mut self, mount_point: &PathBuf) {
+    pub fn unmount(&mut self, mount_point: &PathBuf) -> Result<(), ()>{
         match self.map.remove(mount_point) {
-            Some(entry) => entry.vfat.flush(),
-            None => return
-        };
+            Some(entry) => {
+                entry.vfat.flush();
+                Ok(())
+            },
+            None =>{
+                kprintln!("can't find mount point: {}", mount_point.to_str().unwrap());
+                Err(())
+            } 
+        }
     }
 
     /*pub fn unmount_all(&mut self) {
@@ -144,8 +160,29 @@ impl MountMap {
 
 impl fmt::Display for MountMap {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut part_sizes = [0u64; 4];
+        let mut part_paths = [""; 4];
+        let mut encrypted = [0u8; 4];
+        for i in 0..part_sizes.len() {
+            part_sizes[i] = self.mbr.get_partition_size(i + 1).unwrap() / (1024 * 1024);
+        }
+
+        write!(f, "DEV       SIZE (MiB)   E    MOUNT POINT\n")?;
+        write!(f, "|\n --sd\n")?;
         for (path, map_entry) in self.map.iter() {
-            write!(f, "{} -> {}\n", map_entry.part_num, path.as_path().to_str().unwrap())?;
+            part_paths[map_entry.part_num - 1] = path.to_str().unwrap();
+            encrypted[map_entry.part_num - 1] = match map_entry.options {
+                MountOptions::Encrypted(_) => 1,
+                _ => 0
+            };
+        }
+
+        for i in 0..part_paths.len() {
+            if part_paths[i].len() > 0 {
+                write!(f, "  |\n   --sd{}   {:<10}  {}    {}\n", i + 1, part_sizes[i], encrypted[i], part_paths[i])?;
+            } else {
+                write!(f, "  |\n   --sd{}   {:<10}  {}\n", i + 1, part_sizes[i], encrypted[i])?;
+            }
         }
         Ok(())
     }
