@@ -3,6 +3,7 @@ pub mod mount_map;
 
 
 use alloc::rc::Rc;
+use alloc::string::String;
 use core::fmt::{self, Debug};
 use shim::io;
 use shim::ioerr;
@@ -72,20 +73,18 @@ impl FileSystem {
             Some(_) => panic!("Attempted to initialize FS twice"),
             None => (),
         }
-        let mut mount_map = MountMap::new();
         let sd = Sd::new().expect("Unable to init SD card");
-        match mount_map.mount_root(sd, 2, MountOptions::Normal) {
+
+        // mount the root FS
+        let mut mount_map = MountMap::new();
+        match mount_map.mount_root(sd, 2, MountOptions::Encrypted(String::from("cs3210!"))) {
+        //match mount_map.mount_root(sd, 1, MountOptions::Normal) {
             Ok(_) => (),
             Err(e) => {
                 kprintln!("error mounting root FS: {:?}", e);
                 panic!("unable to mount root filesystem");
             }
         }
-        //let fs = VFat::<PiVFatHandle>::from(sd, 1).expect("Unable to init VFat");
-        /*match mount_map.mount(&PathBuf::from("/boot"), sd, 1) {
-            Err(e) => kprintln!("{:?}", e),
-            Ok(_) => ()
-        }*/
         *guard = Some(mount_map);
     }
 
@@ -94,7 +93,7 @@ impl FileSystem {
         let mut map = self.0.lock();
         match &mut *map {
             Some(map) => match map.route(&path.as_ref().to_path_buf()) {
-                Ok((vfat, real_path)) => vfat.flush(),
+                Ok((vfat, _real_path)) => vfat.flush(),
                 Err(_) => () // add error reporting??
             },
             None => (),

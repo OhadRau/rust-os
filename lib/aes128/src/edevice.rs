@@ -35,15 +35,28 @@ impl<T: BlockDevice> EncryptedDevice<T> {
     /// Create a new EncryptedDevice.
     /// 
     /// Args:
-    ///     password: a 16 bytes array of the password used to generate a key
+    ///     password: an &str, must be <= 16 bytes
     ///     blockDevice: BlockDevice to add encryption to
-    /// 
-    pub fn new(password: &[u8; 16], blockDevice: T) -> EncryptedDevice<T> {
-        EncryptedDevice {
-            cipher: aes128::gen_cipher(password),
+    /// Returns:
+    ///     Some(EncryptedDevice) if successfull
+    ///     None                  password was too long
+    /// should probably change to return a Result but I'm lazy so option is good for now
+    pub fn new(password: &str, blockDevice: T) -> Option<EncryptedDevice<T>> {
+        // we could change this to use a proper key derivation function
+        // currently just make sure the password <= 16 bytes and pad with zeroes
+        // pw.len() == pw.as_bytes().len() ?
+        if password.as_bytes().len() > 16 {
+            return None;
+        }
+        // create a padded key from the password string
+        let mut key = [0u8; 16];
+        key[..password.as_bytes().len()].copy_from_slice(password.as_bytes());
+
+        Some(EncryptedDevice {
+            cipher: aes128::gen_cipher(&key),
             blockDevice: blockDevice,
             e_flag: true,
-        }
+        })
     }
 
     ///

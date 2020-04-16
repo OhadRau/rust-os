@@ -1,7 +1,6 @@
 use hashbrown::HashMap;
-use fat32::vfat::{VFat, VFatHandle, Error};
+use fat32::vfat::VFat;
 use fat32::traits::{FileSystem};
-use fat32::mbr::MasterBootRecord;
 use blockdev::block_device::BlockDevice;
 use blockdev::mount::*;
 use alloc::boxed::Box;
@@ -30,7 +29,7 @@ impl MountMap {
 
     // we need to mount the root partition before mounting any other ones because all the mountpoints
     // need exist as directories in the FS mounted as /
-    pub fn mount_root<T>(&mut self, mut device: T, part_num: usize, options: MountOptions) -> io::Result<()>
+    pub fn mount_root<T>(&mut self, device: T, part_num: usize, options: MountOptions) -> io::Result<()>
     where T: BlockDevice + 'static, {
         self.do_mount(&PathBuf::from("/"), device, part_num, options)
     }
@@ -38,13 +37,13 @@ impl MountMap {
     /// mount partition number part_num to mount_point 
     /// pointed to by mount_point. Initializes the VFat
     /// for that partition and inserts it into thee map.
-    pub fn mount<T>(&mut self, mount_point: &PathBuf, mut device: T, part_num: usize, options: MountOptions) -> io::Result<()>
+    pub fn mount<T>(&mut self, mount_point: &PathBuf, device: T, part_num: usize, options: MountOptions) -> io::Result<()>
     // maybe not use static lifetime? vfat uses it
     where T: BlockDevice + 'static, {
         // check that the mount point exists
         match self.route(mount_point) {
             Ok((vfat, real_mount_path)) => match vfat.open_dir(real_mount_path) {
-                Ok(dir) => (),
+                Ok(_dir) => (),
                 Err(_) => return ioerr!(NotFound, "Unable to mount device: mount point does not exist")
             },
             Err(_) => return ioerr!(NotFound, "Unable to mount device: mount point does not exist")
@@ -54,14 +53,14 @@ impl MountMap {
         self.do_mount(mount_point, device, part_num, options)
     }
 
-    fn do_mount<T>(&mut self, mount_point: &PathBuf, mut device: T, part_num: usize, options: MountOptions) -> io::Result<()> 
+    fn do_mount<T>(&mut self, mount_point: &PathBuf, device: T, part_num: usize, options: MountOptions) -> io::Result<()> 
     where T: BlockDevice + 'static, {
         if self.map.contains_key(&mount_point.clone()) {
             return ioerr!(InvalidData, "mount point already mounted!!");
         }
 
-        for (path, entry) in self.map.iter() {
-            if (entry.part_num == part_num) {
+        for (_path, entry) in self.map.iter() {
+            if entry.part_num == part_num {
                 return ioerr!(InvalidData, "partition already mounted!!")
             }
         }

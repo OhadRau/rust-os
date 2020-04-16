@@ -71,18 +71,12 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
         let cached;
         match options {
             MountOptions::Encrypted(pw) => {
-                // we could change this to use a proper key derivation function
-                // currently just make sure the password <= 16 bytes and pad with zeroes
-                // pw.len() == pw.as_bytes().len() ?
-                if pw.as_bytes().len() > 16 {
-                    return Err(Error::Io(io::Error::new(io::ErrorKind::InvalidData,  "password length limited to 16 bytes")));
-                }
-
-                // create a padded key from the password string
-                let mut key = [0u8; 16];
-                key[..pw.as_bytes().len()].copy_from_slice(pw.as_bytes());
-
-                let mut crypt_device = EncryptedDevice::new(&key, device);
+                let mut crypt_device = match EncryptedDevice::new(pw.as_str(), device) {
+                    Some(edev) => edev,
+                    None => return Err(Error::Io(
+                        io::Error::new(io::ErrorKind::InvalidData, "password must be less than 16 bytes")
+                    ))
+                };
                 ebpb = BiosParameterBlock::from(&mut crypt_device, start_sector as u64)?;
                 partition = Partition {
                     start: start_sector as u64,
@@ -103,7 +97,6 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
             }
         }
 
-        
         let num_fats = ebpb.num_fats;
         let num_sectors = num_fats as u64 * ebpb.sectors_per_fat as u64;
 

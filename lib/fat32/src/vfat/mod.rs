@@ -8,7 +8,6 @@ pub(crate) mod fat;
 pub(crate) mod file;
 pub(crate) mod metadata;
 pub(crate) mod vfat;
-pub(crate) mod format;
 
 pub use self::dir::Dir;
 pub use self::ebpb::BiosParameterBlock;

@@ -7,10 +7,10 @@ use stack_vec::StackVec;
 use pi::atags::Atags;
 
 use fat32::traits::{Dir, Entry, FileSystem, Metadata, BlockDevice};
+use fat32::vfat::BiosParameterBlock;
+use fat32::mbr::MasterBootRecord;
 use blockdev::mount::*;
-
-use aes128::aes128::{encrypt, decrypt, gen_cipher};
-use aes128::edevice;
+use aes128::edevice::EncryptedDevice;
 
 use alloc::vec::Vec;
 
@@ -101,10 +101,7 @@ impl<'a> Command<'a> {
             "lsblk" => FILESYSTEM.lsblk(),
             "mount" => mount(cwd, &self.args[1], &self.args[2]),
             "umount" => umount(cwd, &self.args[1]),
-            "edevice" => edevice(cwd, &self.args[1..]),
-            "enc" => enc(cwd, &self.args[1..]),
-            "dec" => dec(cwd, &self.args[1..]),
-            "encdec" => encdec(cwd, &self.args[1..]),
+            "mkcrypt" => encrypt_part(&self.args[1..]),
             path => kprintln!("unknown command: {}", path)
         }
     }
@@ -231,46 +228,6 @@ fn cat(cwd: &PathBuf, args: &[&str]) {
     for arg in args {
         cat_one(cwd, arg)
     }
-}
-
-///
-/// edevice password
-/// 
-/// encrypted write and read of [0, 1, .., 31]
-/// 
-fn edevice(_cwd: &PathBuf, args: &[&str]) {
-    if args.len() != 1 {
-        kprintln!("edevice only takes one arg");
-
-        return
-    }
-
-    let mut password = [0u8; 16];
-
-    for i in 0..16 {
-        password[i] = args[0].as_bytes()[i];
-    }
-
-    let sd = unsafe { Sd::new().expect("Unable to init SD card") };
-    let mut encrypted_device = edevice::EncryptedDevice::new(&password, sd);
-
-    let mut buf = [1u8; 512];
-    let write_buf = [5u8; 512];
-
-    kprint!("write buffer: [");
-    for i in 0..write_buf.len() {
-        kprint!("{}, ", write_buf[i]);
-    }
-    kprintln!("]");
-    encrypted_device.write_sector(512, &write_buf).expect("failed to write to sector");
-    let bytes_read = encrypted_device.read_sector(512, &mut buf);
-
-    kprintln!("read {:?} bytes", bytes_read);
-    kprint!("read buffer: [");
-    for i in 0..buf.len() {
-        kprint!("{}, ", buf[i]);
-    }
-    kprintln!("]");
 }
 
 fn canonicalize(path: PathBuf) -> Result<PathBuf, ()> {
@@ -470,6 +427,134 @@ fn umount(cwd: &PathBuf, mount_point: &str) {
     };
 
     FILESYSTEM.unmount(abs_path);
+}
+
+// backs the mkcrypt command
+// encrypts a device sector by sector
+// usage: mkcrypt {header|full} num password
+// header = don't encrypt data area (saves time if we don't care about the existing data on the partition)
+// header mode will also zero the root cluster so that it's valid
+// full = encrypt every sector of the partition (will be slow for large disks)
+// if there's a power disruption or anything like that during the execution of this command you'll have
+// big problems (we can fix that by creating a backup though)
+fn encrypt_part(args: &[&str]) {
+    if args.len() < 3 {
+        kprintln!("not enough arguments!\nusage: mkcrypt {{header|full}} num password");
+        return;
+    }
+    // check usage 
+    let mode = args[0]; // args[0] = mode (header|full)
+    match mode {
+        "header"|"full" => (),
+        _ => {
+            kprintln!("invalid mode: {}!\nusage: mkcrypt {{header|full}} num password", mode);
+            return;
+        }
+    }
+
+    let part_num: usize = match args[1].parse() {
+        Ok(num) => num,
+        Err(_) => {
+            kprintln!("invalid partition number: {}!\nusage: mkcrypt {{header|full}} num password", args[1]);
+            return;
+        }
+    };
+
+    if args[2].as_bytes().len() > 16 {
+        kprintln!("password can be at most 16 bytes");
+        return;
+    }
+
+    // we can change this later to be device agnostic
+    let mbr = match MasterBootRecord::from(Sd {}) {
+        Ok(mbr) => mbr,
+        Err(e) => {
+            kprintln!("error parsing MBR: {:?}", e);
+            return;
+        }
+    };
+
+    let start_sector = match mbr.get_partition_start(part_num) {
+        Some(s) => s as u64,
+        None => {
+            kprintln!("unable to get start sector for partition #{}", part_num);
+            return;
+        }
+    };
+
+    let ebpb = match BiosParameterBlock::from(Sd {}, start_sector) {
+        Ok(ebpb) => ebpb,
+        Err(e) => {
+            kprintln!("unable to parse EBPB: {:?}", e);
+            return;
+        }
+    };
+
+    let end_sector: u64;
+    match mode {
+        "header" => {
+            end_sector = start_sector
+                       + ebpb.num_reserved_sectors as u64
+                       + (ebpb.num_fats as u64 * ebpb.sectors_per_fat as u64)
+                       - 1;
+            kprintln!("Encrypting root cluster...");
+            // encrypt root dir as well
+            let sector_offset = ((ebpb.root_cluster_number - 2) as u64) * (ebpb.sectors_per_cluster as u64);
+            let root_start_sector = end_sector + 1 + sector_offset as u64;
+            let root_cluster_end = root_start_sector + ebpb.sectors_per_cluster as u64 - 1;
+            match encrypt_sectors(root_start_sector, root_cluster_end, args[2]) {
+                Ok(_) => (),
+                Err(_) => return
+            }
+            kprintln!("Encrypting filesystem header...");
+        },
+        "full" => {
+            end_sector = start_sector
+                       + ebpb.num_logical_sectors_ext as u64
+                       - 1;
+            kprintln!("Encrypting entire partition...");
+        }
+        _ => {
+            kprintln!("invalid mode: {}!\nusage: mkcrypt {{header|full}} num password", mode);
+            return;
+        }
+    }
+
+    match encrypt_sectors(start_sector, end_sector, args[2]) {
+            Ok(_) => (),
+            Err(_) => return
+    }
+}
+
+// encrypts sectors [first, last] on Sd {} using key
+fn encrypt_sectors(first: u64, last: u64, key: &str) -> Result<(), ()> {
+    kprintln!("about to encrypt sectors {} - {}, inclusive.", first, last);
+    let mut plaintext_device = Sd {};
+    // key should have been guaranteed valid by encrypt_part
+    let mut crypt_device = EncryptedDevice::new(key, Sd {}).unwrap();
+    let mut buf = [0u8; 512];
+
+    let total_sectors: f64 = last as f64 - first as f64 + 1f64;
+    for sector in first..=last {
+        let progress = ((sector - first) as f64)/total_sectors * 100f64;
+        kprint!("Encrypting sectors ({:.2}%)\r", progress);
+        match plaintext_device.read_sector(sector, &mut buf) {
+            Ok(_) => (),
+            Err(_) => {
+                kprintln!("error reading sector: {}. Exting.", sector);
+                return Err(());
+            }
+        }
+        match crypt_device.write_sector(sector, &buf) {
+            Ok(_) => (),
+            Err(_) => {
+                kprintln!("error writing encrypted sector: {}. Exting.", sector);
+                return Err(());
+            }
+        }
+    }
+    kprintln!("");
+    Ok(())
 }
 
 /// Starts a shell using `prefix` as the prefix for each line. This function

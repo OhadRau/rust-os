@@ -1,16 +1,7 @@
-use core::time::Duration;
 use shim::io;
 use shim::ioerr;
-use alloc::boxed::Box;
 use crate::console::{kprintln, kprint};
-use crate::ALLOCATOR;
-use core::mem;
-use core::alloc::Layout;
-use core::alloc::GlobalAlloc;
 use fat32::traits::BlockDevice;
-use pi::timer;
-use core::fmt;
-use shim::{const_assert_eq, const_assert_size};
 
 extern "C" {
     /// zeros the memory for the static sd descriptor
@@ -74,7 +65,6 @@ impl BlockDevice for Sd {
         }
 
         let buf_ptr = buf.as_mut_ptr();
-
         // multiply n by 512 bc sdTransferBlocks expects a byte address
         match unsafe { sdTransferBlocks(n * 512, 1, buf_ptr, 0) } {
             0 => {
