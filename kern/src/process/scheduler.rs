@@ -36,11 +36,15 @@ impl GlobalScheduler {
         f(guard.as_mut().expect("scheduler uninitialized"))
     }
 
-
     /// Adds a process to the scheduler's queue and returns that process's ID.
     /// For more details, see the documentation on `Scheduler::add()`.
     pub fn add(&self, process: Process) -> Option<Id> {
         self.critical(move |scheduler| scheduler.add(process))
+    }
+
+    /// Forks the current process and returns the child process's ID.
+    pub fn fork(&self, tf: &TrapFrame) -> Option<Id> {
+        self.critical(move |scheduler| scheduler.fork(tf))
     }
 
     /// Performs a context switch using `tf` by setting the state of the current
@@ -171,6 +175,16 @@ impl Scheduler {
 
         self.last_id = Some(pid);
         self.last_id
+    }
+
+    fn fork(&mut self, tf: &TrapFrame) -> Option<Id> {
+        match self.processes.front() {
+            Some(parent) => {
+                let child = parent.fork(tf);
+                self.add(child)
+            },
+            None => None
+        }
     }
 
     /// Finds the currently running process, sets the current process's state

@@ -24,6 +24,10 @@ pub fn getpid() -> u64 {
     unsafe { do_syscall1!(SYS_GETPID) }
 }
 
+pub fn fork() -> OsResult<u64> {
+    unsafe { do_syscall1r!(SYS_FORK) }
+}
+
 pub fn time() -> Duration {
     let (secs, nanos) = unsafe { do_syscall2!(SYS_TIME) };
     Duration::new(secs, nanos as u32)

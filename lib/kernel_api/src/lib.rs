@@ -88,21 +88,18 @@ pub const SYS_OUTPUT: usize = 12;
 
 // General filesystem syscalls
 pub const SYS_FS_CREATE: usize = 20;
-pub const SYS_FS_METADATA: usize = 21;
-pub const SYS_FS_FLUSH: usize = 22;
-pub const SYS_FS_MOUNT: usize = 23;
-pub const SYS_FS_UNMOUNT: usize = 24;
+pub const SYS_FS_OPEN: usize = 21;
+pub const SYS_FS_CLOSE: usize = 22;
+pub const SYS_FS_DELETE: usize = 23;
+pub const SYS_FS_METADATA: usize = 24;
+pub const SYS_FS_FLUSH: usize = 25;
+pub const SYS_FS_MOUNT: usize = 26;
+pub const SYS_FS_UNMOUNT: usize = 27;
 
 // File-specific syscalls
-pub const SYS_FILE_OPEN: usize = 30;
-pub const SYS_FILE_SEEK: usize = 31;
-pub const SYS_FILE_READ: usize = 32;
-pub const SYS_FILE_WRITE: usize = 33;
-pub const SYS_FILE_CLOSE: usize = 34;
-pub const SYS_FILE_DELETE: usize = 35;
+pub const SYS_FILE_SEEK: usize = 30;
+pub const SYS_FILE_READ: usize = 31;
+pub const SYS_FILE_WRITE: usize = 32;
 
 // Directory-specific syscalls
-pub const SYS_DIR_OPEN: usize = 40;
-pub const SYS_DIR_LIST: usize = 41;
-pub const SYS_DIR_CLOSE: usize = 42;
-pub const SYS_DIR_DELETE: usize = 43;
+pub const SYS_DIR_LIST: usize = 40;

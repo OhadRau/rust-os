@@ -165,6 +165,13 @@ impl PageTable {
 
     /// Set the given RawL3Entry `entry` to the L3Entry indicated by the given virtual
     /// address.
+    pub fn get_entry(&self, va: VirtualAddr) -> L3Entry {
+        let (l2index, l3index) = Self::locate(va);
+        self.l3[l2index].entries[l3index]
+    }
+
+    /// Set the given RawL3Entry `entry` to the L3Entry indicated by the given virtual
+    /// address.
     pub fn set_entry(&mut self, va: VirtualAddr, entry: RawL3Entry) -> &mut Self {
         let (l2index, l3index) = Self::locate(va);
         self.l3[l2index].entries[l3index] = L3Entry(entry);
@@ -268,6 +275,26 @@ impl UserPageTable {
         }*/
 
         UserPageTable(pt)
+    }
+
+
+    pub fn duplicate(&self) -> Self {
+        let mut pt = Self::new();
+
+        let mut mem_idx = USER_IMG_BASE;
+
+        for entry in self.0.into_iter() {
+            let va = VirtualAddr::from(mem_idx);
+            if entry.is_valid() {
+                let addr = entry.get_page_addr().expect("Couldn't get page table entry's ADDR field");
+                let buf = pt.alloc(va, PagePerm::RWX);
+                let contents = unsafe { core::slice::from_raw_parts(addr.as_ptr(), PAGE_SIZE) };
+                buf.copy_from_slice(&contents);
+            }
+            mem_idx += PAGE_SIZE;
+        }
+
+        pt
     }
 
     /// Allocates a page and set an L3 entry translates given virtual address to the

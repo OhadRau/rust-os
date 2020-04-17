@@ -5,7 +5,7 @@ use shim::path::Path;
 use aarch64;
 
 use crate::param::*;
-use crate::process::{Stack, State};
+use crate::process::State;
 use crate::traps::TrapFrame;
 use crate::vm::*;
 use kernel_api::{OsError, OsResult};
@@ -18,8 +18,6 @@ pub type Id = u64;
 pub struct Process {
     /// The saved trap frame of a process.
     pub context: Box<TrapFrame>,
-    /// The memory allocation used for the process's stack.
-    pub stack: Stack,
     /// The page table describing the Virtual Memory of the process
     pub vmap: Box<UserPageTable>,
     /// The scheduling state of the process.
@@ -34,17 +32,20 @@ impl Process {
     /// `None`. Otherwise returns `Some` of the new `Process`.
     pub fn new() -> OsResult<Process> {
         let tf = TrapFrame::default();
-        let stack = match Stack::new() {
-            Some(stk) => stk,
-            None => return Err(OsError::NoMemory),
-        };
         let state = State::Ready;
         Ok(Process {
             context: Box::new(tf),
-            stack,
             vmap: Box::new(UserPageTable::new()),
             state,
         })
+    }
+
+    pub fn fork(&self, tf: &TrapFrame) -> Process {
+        Process {
+            context: Box::new(tf.clone()),
+            vmap: Box::new(self.vmap.duplicate()),
+            state: State::Ready,
+        }
     }
 
     /// Load a program stored in the given path by calling `do_load()` method.

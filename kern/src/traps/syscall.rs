@@ -6,6 +6,13 @@ use crate::traps::TrapFrame;
 use crate::SCHEDULER;
 use kernel_api::*;
 
+/// Kills current process.
+///
+/// This system call does not take parameter and does not return any value.
+pub fn sys_exit(tf: &mut TrapFrame) {
+    let _ = SCHEDULER.kill(tf);
+}
+
 /// Sleep for `ms` milliseconds.
 ///
 /// This system call takes one parameter: the number of milliseconds to sleep.
@@ -39,6 +46,27 @@ pub fn sys_getpid(tf: &mut TrapFrame) {
     tf.xs[7] = 1; // success
 }
 
+/// Forks a process into two separate processes.
+///
+/// This system call does not take parameters.
+///
+/// In addition to the usual status value, this system call returns
+/// a parameter: 0 for the child process and the child's PID for the
+/// parent process.
+pub fn sys_fork(tf: &mut TrapFrame) {
+    tf.xs[0] = 0; // Set the first result to 0 before forking so the child sees a 0
+    tf.xs[7] = 1; // Success
+    match SCHEDULER.fork(tf) {
+        Some(new_pid) => {
+            tf.xs[0] = new_pid;
+        },
+        None => {
+            tf.xs[7] = 0; // Unknown error
+        }
+    } 
+}
+
+
 /// Returns current time.
 ///
 /// This system call does not take parameter.
@@ -55,13 +83,6 @@ pub fn sys_time(tf: &mut TrapFrame) {
     tf.xs[0] = secs;
     tf.xs[1] = nanos as u64;
     tf.xs[7] = 1; // success
-}
-
-/// Kills current process.
-///
-/// This system call does not take parameter and does not return any value.
-pub fn sys_exit(tf: &mut TrapFrame) {
-    let _ = SCHEDULER.kill(tf);
 }
 
 /// Read from console.
@@ -91,6 +112,7 @@ pub fn handle_syscall(num: u16, tf: &mut TrapFrame) {
         SYS_EXIT => sys_exit(tf),
         SYS_SLEEP => sys_sleep(tf.xs[0] as u32, tf),
         SYS_GETPID => sys_getpid(tf),
+        SYS_FORK => sys_fork(tf),
 
         SYS_TIME => sys_time(tf),
         SYS_INPUT => sys_input(tf),
