@@ -15,5 +15,9 @@ memcpy = true
 
 [dependencies]
 pi = { path = "../lib/pi/" }
-shim = { path = "../lib/shim", features = ["no_std"] }
+shim = { path = "../lib/shim", features = ["alloc"] }
 xmodem = { path = "../lib/xmodem", features = ["no_std"] }
+fat32 = { path = "../lib/fat32", features = ["no_std"] }
+blockdev = { path = "../lib/blockdev", features = ["no_std"] }
+liballoc = { path = "../lib/liballoc" }
+sd = { path = "../lib/sd" }

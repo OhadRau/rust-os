@@ -22,6 +22,8 @@ aes128 = { path = "../lib/aes128/", features = ["no_std"] }
 aarch64 = { path = "../lib/aarch64/" }
 kernel_api = { path = "../lib/kernel_api" }
 blockdev = { path = "../lib/blockdev", features = ["no_std"] }
+liballoc = { path = "../lib/liballoc" }
+sd = { path = "../lib/sd" }
 hashbrown = "0.6.3"
 
 [dev-dependencies]

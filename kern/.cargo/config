@@ -7,7 +7,6 @@ rustflags = [
     "-C", "target-cpu=cortex-a53",
     "-C", "link-arg=--script=.cargo/layout.ld",
     "-C", "link-arg=--no-dynamic-linker",
-    "-C", "link-arg=--no-dynamic-linker",
 
     # link to libsd.a
     "-C", "link-arg=-L.cargo",

@@ -12,7 +12,7 @@ pub use fat32::traits;
 use fat32::vfat::{Dir, Entry, File, VFat, VFatHandle};
 use blockdev::mount::MountOptions;
 
-use self::sd::Sd;
+use sd::sd::Sd;
 use self::mount_map::MountMap;
 use crate::mutex::Mutex;
 use crate::console::kprintln;

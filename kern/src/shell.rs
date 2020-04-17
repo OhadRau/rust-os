@@ -14,7 +14,7 @@ use aes128::edevice::EncryptedDevice;
 
 use alloc::vec::Vec;
 
-use crate::fs::sd::Sd;
+use sd::sd::Sd;
 
 use crate::console::{kprint, kprintln, CONSOLE};
 use crate::FILESYSTEM;

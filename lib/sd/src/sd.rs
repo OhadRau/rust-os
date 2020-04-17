@@ -1,7 +1,6 @@
 use shim::io;
 use shim::ioerr;
-use crate::console::{kprintln, kprint};
-use fat32::traits::BlockDevice;
+use blockdev::block_device::BlockDevice;
 
 extern "C" {
     /// zeros the memory for the static sd descriptor
@@ -22,7 +21,7 @@ extern "C" {
 pub extern "C" fn uart_putc(c: char) {
     // this is a binding for the SD library that allows it to print to 
     // our console
-    kprint!("{}", c);
+    //kprint!("{}", c);
 }
 
 /// A handle to an SD card controller.
@@ -37,7 +36,8 @@ impl Sd {
     /// written the memory management unit (MMU).
     pub unsafe fn new() -> Result<Sd, io::Error> {
         sdInit();
-        kprintln!("\nsd init ret: {}", sdInitCard());
+        sdInitCard(); // TODO error handling
+        //kprintln!("\nsd init ret: {}", sdInitCard());
 
         Ok(Sd {})
     }
@@ -71,7 +71,7 @@ impl BlockDevice for Sd {
                 return Ok(n as usize);
             }
             err => { 
-                kprintln!("read error occured: {}", err);
+                //kprintln!("read error occured: {}", err);
                 ioerr!(BrokenPipe, "unknown sd error occurred")
             }
         }
@@ -93,7 +93,7 @@ impl BlockDevice for Sd {
                 return Ok(n as usize);
             }
             err => { 
-                kprintln!("write error occured: {}", err);
+                //kprintln!("write error occured: {}", err);
                 ioerr!(BrokenPipe, "unknown sd error occurred")
             }
         }

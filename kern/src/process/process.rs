@@ -278,7 +278,7 @@ impl Process {
     /// Returns the `VirtualAddr` represents the top of the user process's
     /// stack.
     pub fn get_stack_top() -> VirtualAddr {
-        use crate::allocator::util::align_down;
+        use liballoc::util::align_down;
         // Won't let me add max_va :(
         VirtualAddr::from(align_down(usize::max_value(), 16))
     }

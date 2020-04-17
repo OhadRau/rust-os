@@ -1,6 +1,6 @@
 use liballoc::traits::LocalAlloc;
 type AllocatorImpl = liballoc::bump::Allocator;
-mod mutex;
+pub mod mutex;
 #[cfg(test)]
 mod tests;
 

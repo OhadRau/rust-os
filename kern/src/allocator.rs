@@ -1,10 +1,5 @@
-mod linked_list;
-pub mod util;
-
-mod bin;
-mod bump;
-
-type AllocatorImpl = bump::Allocator;
+use liballoc::traits::LocalAlloc;
+type AllocatorImpl = liballoc::bin::Allocator;
 
 #[cfg(test)]
 mod tests;
@@ -15,13 +10,6 @@ use core::fmt;
 //use crate::console::kprintln;
 use crate::mutex::Mutex;
 use pi::atags::{Atag, Atags};
-
-/// `LocalAlloc` is an analogous trait to the standard library's `GlobalAlloc`,
-/// but it takes `&mut self` in `alloc()` and `dealloc()`.
-pub trait LocalAlloc {
-    unsafe fn alloc(&mut self, layout: Layout) -> *mut u8;
-    unsafe fn dealloc(&mut self, ptr: *mut u8, layout: Layout);
-}
 
 /// Thread-safe (locking) wrapper around a particular memory allocator.
 pub struct Allocator(Mutex<Option<AllocatorImpl>>);

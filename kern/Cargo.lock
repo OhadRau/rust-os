@@ -163,7 +163,9 @@ dependencies = [
  "fat32 0.1.0",
  "hashbrown 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "kernel_api 0.1.0",
+ "liballoc 0.1.0",
  "pi 0.1.0",
+ "sd 0.1.0",
  "shim 0.1.0",
  "stack-vec 0.1.0",
 ]
@@ -174,6 +176,10 @@ version = "0.1.0"
 dependencies = [
  "shim 0.1.0",
 ]
+
+[[package]]
+name = "liballoc"
+version = "0.1.0"
 
 [[package]]
 name = "libc"
@@ -267,6 +273,14 @@ version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "semver 0.1.20 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "sd"
+version = "0.1.0"
+dependencies = [
+ "blockdev 0.1.0",
+ "shim 0.1.0",
 ]
 
 [[package]]
