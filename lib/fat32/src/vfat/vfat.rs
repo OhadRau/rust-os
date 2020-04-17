@@ -16,6 +16,7 @@ use crate::util::SliceExt;
 use crate::vfat::{BiosParameterBlock, CachedPartition, Partition};
 use crate::vfat::{Cluster, Dir, Entry, Error, FatEntry, File, Status};
 use aes128::edevice::EncryptedDevice;
+use kernel_api::println;
 
 use format;
 
@@ -65,7 +66,7 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
             Some(start) => start,
             None => return Err(Error::NotFound)
         };
-
+        
         let ebpb;
         let partition; 
         let cached;

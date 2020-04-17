@@ -14,6 +14,7 @@ edition = "2018"
 shim = { path = "../shim", features = ["alloc"] }
 blockdev = { path = "../blockdev", features = ["no_std"] }
 aes128 = { path = "../aes128", features = ["no_std"] }
+kernel_api = { path = "../kernel_api", features = ["user-space"] }
 hashbrown = "0.6.3"
 
 [dev-dependencies]

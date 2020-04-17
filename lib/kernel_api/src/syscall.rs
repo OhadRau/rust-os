@@ -119,10 +119,10 @@ macro_rules! print {
 
 #[macro_export]
 macro_rules! println {
- () => (print!("\n"));
+ () => (print!("\r\n"));
     ($($arg:tt)*) => ({
         $crate::syscall::vprint(format_args!($($arg)*));
-        $crate::print!("\n");
+        $crate::print!("\r\n");
     })
 }
 

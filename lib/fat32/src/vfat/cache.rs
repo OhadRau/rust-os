@@ -7,6 +7,7 @@ use shim::io;
 use shim::ioerr;
 
 use crate::traits::BlockDevice;
+use kernel_api::println;
 
 #[derive(Debug)]
 struct CacheEntry {
@@ -82,14 +83,13 @@ impl CachedPartition {
     /// Maps a user's request for a sector `virt` to the physical sector.
     /// Returns `None` if the virtual sector number is out of range.
     fn virtual_to_physical(&self, virt: u64) -> Option<u64> {
-        if virt >= self.partition.num_sectors {
+        if virt >= self.partition.start + self.partition.num_sectors {
             return None;
         }
 
         let virt_offset = virt - self.partition.start;
         let physical_offset = virt_offset * self.factor();
         let physical_sector = self.partition.start + physical_offset;
-
         Some(physical_sector)
     }
     

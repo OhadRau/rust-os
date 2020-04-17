@@ -122,6 +122,7 @@ dependencies = [
  "aes128 0.1.0",
  "blockdev 0.1.0",
  "hashbrown 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "kernel_api 0.1.0",
  "shim 0.1.0",
 ]
 
