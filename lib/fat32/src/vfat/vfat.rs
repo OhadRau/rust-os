@@ -66,7 +66,7 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
             Some(start) => start,
             None => return Err(Error::NotFound)
         };
-        
+
         let ebpb;
         let partition; 
         let cached;
@@ -78,7 +78,11 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
                         io::Error::new(io::ErrorKind::InvalidData, "password must be less than 16 bytes")
                     ))
                 };
-                ebpb = BiosParameterBlock::from(&mut crypt_device, start_sector as u64)?;
+                ebpb = match BiosParameterBlock::from(&mut crypt_device, start_sector as u64) {
+                    Ok(ebpb) => ebpb,
+                    Err(Error::BadSignature) => return Err(Error::BadKey),
+                    Err(other) => return Err(other)
+                };
                 partition = Partition {
                     start: start_sector as u64,
                     num_sectors: ebpb.num_logical_sectors_ext as u64,

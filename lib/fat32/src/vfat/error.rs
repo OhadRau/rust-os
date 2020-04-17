@@ -7,6 +7,7 @@ pub enum Error {
     Mbr(mbr::Error),
     Io(io::Error),
     BadSignature,
+    BadKey,
     NotFound,
 }
 

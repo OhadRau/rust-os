@@ -91,6 +91,15 @@ impl MountMap {
     /// unmounts the filesystem pointed to by mount_point
     /// flushes the filesystem and then drops it
     pub fn unmount(&mut self, mount_point: &PathBuf) -> Result<(), ()>{
+        // don't let them unmount a partition that contains the mount point of a currently
+        // mounted partition
+        for (path, _entry) in self.map.iter() {
+            if path.as_path().starts_with(mount_point) && path != mount_point {
+                kprintln!("target is busy!");
+                return Err(());
+            }
+        }
+
         match self.map.remove(mount_point) {
             Some(entry) => {
                 entry.vfat.flush();
