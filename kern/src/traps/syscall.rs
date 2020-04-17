@@ -66,6 +66,27 @@ pub fn sys_fork(tf: &mut TrapFrame) {
     } 
 }
 
+pub fn sys_exec(program: *const u8, strlen: usize, tf: &mut TrapFrame) {
+    let string = unsafe { core::slice::from_raw_parts(program, strlen) };
+    let path = match core::str::from_utf8(string) {
+        Ok(name) => name,
+        Err(_) => {
+            tf.xs[7] = 0; // Unknown error
+            return
+        }
+    };
+
+    let result = SCHEDULER.with_running(|process: &mut crate::process::Process| {
+        match process.load_existing(path) {
+            Ok(()) => *tf = *process.context,
+            Err(_) => tf.xs[7] = 0, // Unknown error
+        }
+    });
+    match result {
+        Some(_) => (),
+        None => tf.xs[7] = 0, // Unknown error
+    }
+}
 
 /// Returns current time.
 ///
@@ -113,6 +134,7 @@ pub fn handle_syscall(num: u16, tf: &mut TrapFrame) {
         SYS_SLEEP => sys_sleep(tf.xs[0] as u32, tf),
         SYS_GETPID => sys_getpid(tf),
         SYS_FORK => sys_fork(tf),
+        SYS_EXEC => sys_exec(tf.xs[0] as *const u8, tf.xs[1] as usize, tf),
 
         SYS_TIME => sys_time(tf),
         SYS_INPUT => sys_input(tf),

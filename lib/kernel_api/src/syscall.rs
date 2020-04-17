@@ -28,6 +28,12 @@ pub fn fork() -> OsResult<u64> {
     unsafe { do_syscall1r!(SYS_FORK) }
 }
 
+pub fn exec(path: &str) -> OsResult<()> {
+    let path_ptr = unsafe { &path.as_bytes()[0] as *const u8 as u64 };
+    let path_len = path.len() as u64;
+    unsafe { do_syscall0r!(SYS_EXEC, path_ptr, path_len) }
+}
+
 pub fn time() -> Duration {
     let (secs, nanos) = unsafe { do_syscall2!(SYS_TIME) };
     Duration::new(secs, nanos as u32)

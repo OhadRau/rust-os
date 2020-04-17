@@ -5,7 +5,7 @@
 mod cr0;
 
 use kernel_api::{print, println};
-use kernel_api::syscall::{input, output, fork, getpid, sleep, exit};
+use kernel_api::syscall::{input, output, fork, exec, getpid, sleep, exit};
 
 fn main() {
     print!("Echo {}> ", getpid());
@@ -27,6 +27,9 @@ fn main() {
     }
 
     sleep(core::time::Duration::from_millis(10));
+
+    println!("Executing /echo");
+    exec("/echo");
 
     exit()
 }
