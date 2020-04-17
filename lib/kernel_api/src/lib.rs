@@ -5,6 +5,7 @@ use shim::io;
 
 #[cfg(feature = "user-space")]
 pub mod syscall;
+mod syscall_macros;
 
 pub type OsResult<T> = core::result::Result<T, OsError>;
 

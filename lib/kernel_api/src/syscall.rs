@@ -3,23 +3,10 @@ use core::fmt::Write;
 use core::time::Duration;
 
 use crate::*;
-
-macro_rules! err_or {
-    ($ecode:expr, $rtn:expr) => {{
-        let e = OsError::from($ecode);
-        if let OsError::Ok = e {
-            Ok($rtn)
-        } else {
-            Err(e)
-        }
-    }};
-}
+use crate::syscall_macros::*;
 
 pub fn exit() -> ! {
-    unsafe {
-        asm!("svc $0" :: "i"(SYS_EXIT) :: "volatile");
-    }
-
+    unsafe { do_syscall0!(SYS_EXIT) }
     loop {}
 }
 
@@ -29,93 +16,25 @@ pub fn sleep(span: Duration) -> OsResult<Duration> {
     }
 
     let ms = span.as_millis() as u64;
-    let mut ecode: u64;
-    let mut elapsed_ms: u64;
 
-    unsafe {
-        asm!("mov x0, $2
-              svc $3
-              mov $0, x0
-              mov $1, x7"
-             : "=r"(elapsed_ms), "=r"(ecode)
-             : "r"(ms), "i"(SYS_SLEEP)
-             : "x0", "x7"
-             : "volatile");
-    }
-
-    err_or!(ecode, Duration::from_millis(elapsed_ms))
+    unsafe { do_syscall1r!(SYS_SLEEP, ms).map(|ms: u64| Duration::from_millis(ms)) }
 }
 
 pub fn getpid() -> u64 {
-    let mut ecode: u64;
-    let mut pid: u64;
-
-    unsafe {
-        asm!("svc $2
-              mov $0, x0
-              mov $1, x7"
-             : "=r"(pid), "=r"(ecode)
-             : "i"(SYS_GETPID)
-             : "x0", "x7"
-             : "volatile");
-    }
-
-    assert_eq!(ecode, 1);
-    pid
+    unsafe { do_syscall1!(SYS_GETPID) }
 }
 
 pub fn time() -> Duration {
-    let mut ecode: u64;
-    let mut secs: u64;
-    let mut nanos: u64;
-
-    unsafe {
-        asm!("svc $3
-              mov $0, x0
-              mov $1, x1
-              mov $2, x7"
-             : "=r"(secs), "=r"(nanos), "=r"(ecode)
-             : "i"(SYS_TIME)
-             : "x0", "x1", "x7"
-             : "volatile");
-    }
-
-    assert_eq!(ecode, 1);
+    let (secs, nanos) = unsafe { do_syscall2!(SYS_TIME) };
     Duration::new(secs, nanos as u32)
 }
 
 pub fn input() -> u8 {
-    let mut ecode: u64;
-    let mut byte: u8;
-
-    unsafe {
-        asm!("svc $2
-              mov $0, x0
-              mov $1, x7"
-             : "=r"(byte), "=r"(ecode)
-             : "i"(SYS_INPUT)
-             : "x0", "x7"
-             : "volatile");
-    }
-
-    assert_eq!(ecode, 1);
-    byte
+    unsafe { do_syscall1!(SYS_INPUT) as u8 }
 }
 
 pub fn output(b: u8) {
-    let mut ecode: u64;
-
-    unsafe {
-        asm!("mov x0, $1
-              svc $2
-              mov $0, x7"
-             : "=r"(ecode)
-             : "r"(b), "i"(SYS_OUTPUT)
-             : "x0", "x7"
-             : "volatile");
-    }
-
-    assert_eq!(ecode, 1);
+    unsafe { do_syscall0!(SYS_OUTPUT, b as u64) }
 }
 
 struct Console;
