@@ -88,6 +88,24 @@ pub fn sys_exec(program: *const u8, strlen: usize, tf: &mut TrapFrame) {
     }
 }
 
+pub fn sys_wait_pid(pid: u64, tf: &mut TrapFrame) {
+    use core::sync::atomic::Ordering;
+
+    match SCHEDULER.get_dead_handle(pid as crate::process::Id) {
+        Some(dead) => {
+            tf.xs[7] = 1; // Success
+            let is_ready = Box::new(move |_: &mut crate::process::Process| {
+                dead.load(Ordering::Relaxed)
+            });
+
+            SCHEDULER.switch(State::Waiting(is_ready), tf);
+        },
+        None => {
+            tf.xs[7] = 0; // Unknown error
+        }
+    }
+}
+
 /// Returns current time.
 ///
 /// This system call does not take parameter.
@@ -135,6 +153,7 @@ pub fn handle_syscall(num: u16, tf: &mut TrapFrame) {
         SYS_GETPID => sys_getpid(tf),
         SYS_FORK => sys_fork(tf),
         SYS_EXEC => sys_exec(tf.xs[0] as *const u8, tf.xs[1] as usize, tf),
+        SYS_WAIT_PID => sys_wait_pid(tf.xs[0], tf),
 
         SYS_TIME => sys_time(tf),
         SYS_INPUT => sys_input(tf),

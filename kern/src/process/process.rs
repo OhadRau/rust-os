@@ -1,4 +1,6 @@
 use alloc::boxed::Box;
+use alloc::sync::Arc;
+use core::sync::atomic::AtomicBool;
 use shim::io;
 use shim::path::Path;
 
@@ -22,6 +24,8 @@ pub struct Process {
     pub vmap: Box<UserPageTable>,
     /// The scheduling state of the process.
     pub state: State,
+    /// Reference to tell us if the process has died
+    pub dead: Arc<AtomicBool>,
 }
 
 impl Process {
@@ -37,6 +41,7 @@ impl Process {
             context: Box::new(tf),
             vmap: Box::new(UserPageTable::new()),
             state,
+            dead: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -45,6 +50,7 @@ impl Process {
             context: Box::new(tf.clone()),
             vmap: Box::new(self.vmap.duplicate()),
             state: State::Ready,
+            dead: Arc::new(AtomicBool::new(false)),
         }
     }
 

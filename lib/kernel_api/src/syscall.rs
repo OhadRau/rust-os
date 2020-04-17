@@ -34,6 +34,10 @@ pub fn exec(path: &str) -> OsResult<()> {
     unsafe { do_syscall0r!(SYS_EXEC, path_ptr, path_len) }
 }
 
+pub fn wait_pid(pid: u64) -> OsResult<()> {
+    unsafe { do_syscall0r!(SYS_WAIT_PID, pid) }
+}
+
 pub fn time() -> Duration {
     let (secs, nanos) = unsafe { do_syscall2!(SYS_TIME) };
     Duration::new(secs, nanos as u32)

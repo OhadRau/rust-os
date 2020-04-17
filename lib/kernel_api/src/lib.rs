@@ -79,7 +79,8 @@ pub const SYS_SLEEP: usize = 2;
 pub const SYS_GETPID: usize = 3;
 pub const SYS_FORK: usize = 4;
 pub const SYS_EXEC: usize = 5;
-pub const SYS_REQUEST_PAGE: usize = 6;
+pub const SYS_WAIT_PID: usize = 6;
+pub const SYS_REQUEST_PAGE: usize = 7;
 
 // Miscellaneous I/O syscalls
 pub const SYS_TIME: usize = 10;

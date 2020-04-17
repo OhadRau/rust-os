@@ -1,6 +1,9 @@
 use alloc::boxed::Box;
 use alloc::collections::vec_deque::VecDeque;
 
+use alloc::sync::Arc;
+use core::sync::atomic::{AtomicBool, Ordering};
+
 use aarch64::*;
 
 use crate::mutex::Mutex;
@@ -50,6 +53,11 @@ impl GlobalScheduler {
     /// Forks the current process and returns the child process's ID.
     pub fn fork(&self, tf: &TrapFrame) -> Option<Id> {
         self.critical(move |scheduler| scheduler.fork(tf))
+    }
+
+    /// Get an atomic handle that lets us determine whether a process has died
+    pub fn get_dead_handle(&self, pid: Id) -> Option<Arc<AtomicBool>> {
+        self.critical(move |scheduler| scheduler.get_dead_handle(pid))
     }
 
     /// Performs a context switch using `tf` by setting the state of the current
@@ -192,6 +200,17 @@ impl Scheduler {
         }
     }
 
+    fn get_dead_handle(&mut self, pid: Id) -> Option<Arc<AtomicBool>> {
+        let mut dead = None;
+        for process in self.processes.iter() {
+            if process.context.tpidr == pid {
+                dead = Some(process.dead.clone());
+                break;
+            }
+        }
+        dead
+    }
+
     fn with_running<T, F: FnOnce(&mut Process) -> T>(&mut self, f: F) -> Option<T> {
         match self.processes.front_mut() {
             Some(mut front) => Some(f(&mut front)),
@@ -251,6 +270,7 @@ impl Scheduler {
         if self.schedule_out(State::Dead, tf) {
             let killed = self.processes.pop_back()?;
             let pid = killed.context.tpidr;
+            killed.dead.store(true, Ordering::Relaxed);
             core::mem::drop(killed); // Force dropping the instance NOW
             self.switch_to(tf);
             Some(pid)
