@@ -183,6 +183,10 @@ impl Process {
         if args.len() > ARG_MAX {
             crate::kprintln!("[WARNING]: Attempted to pass too many args to program. Only the first {} will be passed.", ARG_MAX);
             args = &args[0..ARG_MAX];
+        } else if args.len() == 0 {
+            self.context.xs[0] = 0u64;
+            self.context.xs[1] = 0u64;
+            return;
         }
 
         for arg in args {
