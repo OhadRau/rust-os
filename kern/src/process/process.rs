@@ -111,6 +111,49 @@ impl Process {
         Ok(process)
     }
 
+    /// Load a program to an existing process
+    pub fn load_existing<P: AsRef<Path>>(&mut self, pn: P) -> OsResult<()> {
+        use io::Read;
+        use alloc::vec;
+        use core::cmp::min;
+        use crate::{VMM, FILESYSTEM};
+        use fat32::traits::{Entry, FileSystem};
+
+        self.vmap.try_alloc(Self::get_stack_base(), PagePerm::RW);
+
+        let entry = FILESYSTEM.open(pn)?;
+        let file_size = entry.metadata().size;
+        let mut file = match entry.into_file() {
+            Some(file) => file,
+            None => return Err(OsError::NoEntry),
+        };
+        let mut pos = 0;
+        let mut buffer = vec![0u8; file_size];
+        loop {
+            match file.read(&mut buffer[pos..])? {
+                0 => break,
+                n => pos += n
+            }
+        }
+
+        let num_pages = 1 + (file_size / PAGE_SIZE);
+        for i in 0..num_pages {
+            let base = VirtualAddr::from(USER_IMG_BASE + i * PAGE_SIZE);
+            let page = self.vmap.try_alloc(base, PagePerm::RWX);
+            let num_bytes = min(PAGE_SIZE, file_size - i * PAGE_SIZE);
+            page[0..num_bytes].copy_from_slice(&buffer[0..num_bytes]);
+        }
+
+        // Set trapframe for the process.
+        self.context.sp = Self::get_stack_top().as_u64();
+        self.context.elr = Self::get_image_base().as_u64();
+        self.context.ttbr0 = VMM.get_baddr().as_u64();
+        self.context.ttbr1 = self.vmap.get_baddr().as_u64();
+        self.context.spsr |= aarch64::SPSR_EL1::F | aarch64::SPSR_EL1::A | aarch64::SPSR_EL1::D;
+
+        Ok(())
+    }
+
     /// Returns the highest `VirtualAddr` that is supported by this system.
     pub fn get_max_va() -> VirtualAddr {
         VirtualAddr::from(USER_IMG_BASE + USER_MAX_VM_SIZE)
