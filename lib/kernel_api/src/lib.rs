@@ -9,6 +9,8 @@ mod syscall_macros;
 
 pub type OsResult<T> = core::result::Result<T, OsError>;
 
+pub const ARG_MAX: usize = 32;
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum OsError {
     Unknown = 0,

@@ -7,7 +7,11 @@ mod cr0;
 use kernel_api::{print, println};
 use kernel_api::syscall::{input, output, fork, exec, wait_pid, getpid, sleep, exit};
 
-fn main() {
+fn main(args: &[&str]) {
+    for arg in args {
+        println!("Found arg: {}", arg);
+    }
+
     print!("Echo {}> ", getpid());
     loop {
         let ch = input();
@@ -32,8 +36,9 @@ fn main() {
     }
 
 
-    println!("Executing /echo");
-    exec("/echo");
+    println!("Executing /echo nut guy");
+    let args = ["nut", "guy"];
+    exec("/echo", &args);
 
     exit()
 }

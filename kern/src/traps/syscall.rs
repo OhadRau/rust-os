@@ -66,8 +66,8 @@ pub fn sys_fork(tf: &mut TrapFrame) {
     } 
 }
 
-pub fn sys_exec(program: *const u8, strlen: usize, tf: &mut TrapFrame) {
-    let string = unsafe { core::slice::from_raw_parts(program, strlen) };
+pub fn sys_exec(program: *const u8, program_len: usize, args: *const &str, args_len: usize, tf: &mut TrapFrame){
+    let string = unsafe { core::slice::from_raw_parts(program, program_len) };
     let path = match core::str::from_utf8(string) {
         Ok(name) => name,
         Err(_) => {
@@ -75,10 +75,14 @@ pub fn sys_exec(program: *const u8, strlen: usize, tf: &mut TrapFrame) {
             return
         }
     };
+    let args: &[&str] = unsafe { core::slice::from_raw_parts(args, args_len) };
 
     let result = SCHEDULER.with_running(|process: &mut crate::process::Process| {
         match process.load_existing(path) {
-            Ok(()) => *tf = *process.context,
+            Ok(()) => {
+                process.init_args(args);
+                *tf = *process.context;
+            },
             Err(_) => tf.xs[7] = 0, // Unknown error
         }
     });
@@ -152,7 +156,7 @@ pub fn handle_syscall(num: u16, tf: &mut TrapFrame) {
         SYS_SLEEP => sys_sleep(tf.xs[0] as u32, tf),
         SYS_GETPID => sys_getpid(tf),
         SYS_FORK => sys_fork(tf),
-        SYS_EXEC => sys_exec(tf.xs[0] as *const u8, tf.xs[1] as usize, tf),
+        SYS_EXEC => sys_exec(tf.xs[0] as *const u8, tf.xs[1] as usize, tf.xs[2] as *const &str, tf.xs[3] as usize, tf),
         SYS_WAIT_PID => sys_wait_pid(tf.xs[0], tf),
 
         SYS_TIME => sys_time(tf),

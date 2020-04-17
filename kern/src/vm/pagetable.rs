@@ -302,10 +302,10 @@ impl UserPageTable {
             panic!("Virtual address not in user range");
         }
 
-        let va = va - VirtualAddr::from(USER_IMG_BASE);
+        let va_local = va - VirtualAddr::from(USER_IMG_BASE);
 
-        if self.0.is_valid(va) {
-            let entry = self.0.get_entry(va);
+        if self.0.is_valid(va_local) {
+            let entry = self.0.get_entry(va_local);
             let mut addr = entry.get_page_addr().expect("Couldn't get page table entry's ADDR field");
             unsafe { core::slice::from_raw_parts_mut(addr.as_mut_ptr(), PAGE_SIZE) }
         } else {

@@ -28,10 +28,13 @@ pub fn fork() -> OsResult<u64> {
     unsafe { do_syscall1r!(SYS_FORK) }
 }
 
-pub fn exec(path: &str) -> OsResult<()> {
+pub fn exec(path: &str, args: &[&str]) -> OsResult<()> {
     let path_ptr = unsafe { &path.as_bytes()[0] as *const u8 as u64 };
     let path_len = path.len() as u64;
-    unsafe { do_syscall0r!(SYS_EXEC, path_ptr, path_len) }
+
+    let args_ptr = unsafe { args.as_ptr() as u64 };
+    let args_len = args.len() as u64;
+    unsafe { do_syscall0r!(SYS_EXEC, path_ptr, path_len, args_ptr, args_len) }
 }
 
 pub fn wait_pid(pid: u64) -> OsResult<()> {

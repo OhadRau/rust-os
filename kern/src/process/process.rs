@@ -160,6 +160,70 @@ impl Process {
         Ok(())
     }
 
+    /// Pass args to an existing program
+    pub fn init_args(&mut self, mut args: &[&str]) {
+        /* What needs to happen? Given an array of arguments:
+           1. Allocate a big buffer
+           2. Copy each string into the buffer & store the offset for each string
+           3. Create a vector that stores all the pointers to strings + their lengths
+              a) This is hard because we need to maintain u64 alignment (8 bytes)
+              b) We also need to calculate the final location of each pointer
+                 (i.e. from the bottom of the stack). This is easier if we can know
+                 the final size of the buffer before creating it.
+        */
+        use kernel_api::ARG_MAX;
+        use alloc::vec;
+        use fat32::util::SliceExt;
+        use crate::allocator::util::{align_up, align_down};
+
+        let fat_pointer_size = core::mem::size_of::<(usize, *const u8)>();
+        let buffer_array_size = fat_pointer_size * args.len();
+        let mut buffer_size = buffer_array_size;
+
+        if args.len() > ARG_MAX {
+            crate::kprintln!("[WARNING]: Attempted to pass too many args to program. Only the first {} will be passed.", ARG_MAX);
+            args = &args[0..ARG_MAX];
+        }
+
+        for arg in args {
+            buffer_size += arg.len();
+        }
+
+        let buffer_start_addr = align_down(Self::get_stack_top().as_usize() - buffer_size, PAGE_SIZE);
+
+        let mut buffer = vec![(0, core::ptr::null()); align_up(buffer_size, PAGE_SIZE) / fat_pointer_size];
+        let mut buf_addr = buffer_array_size;
+
+        for i in 0..args.len() {
+            let len = args[i].len();
+            let bytes = args[i].as_bytes();
+            buffer[i] = (len, (buffer_start_addr + buf_addr) as *const u8);
+
+            let char_buffer = unsafe { &mut buffer.cast_mut::<u8>() };
+            char_buffer[buf_addr..buf_addr+len].copy_from_slice(&bytes[0..len]);
+            buf_addr += len;
+        }
+
+        let mut base_addr = buffer_start_addr;
+        while base_addr < Self::get_stack_top().as_usize() {
+            let va = VirtualAddr::from(base_addr);
+            let page = self.vmap.try_alloc(va, PagePerm::RW);
+
+            let idx = base_addr - buffer_start_addr;
+            let char_buffer = unsafe { &mut buffer.cast_mut::<u8>() };
+            page.copy_from_slice(&char_buffer[idx..idx.saturating_add(PAGE_SIZE)]);
+
+            base_addr = base_addr.saturating_add(PAGE_SIZE);
+        }
+
+        let stack_va = VirtualAddr::from(buffer_start_addr - PAGE_SIZE);
+        let _ = self.vmap.try_alloc(stack_va, PagePerm::RW);
+
+        self.context.sp -= buffer_size as u64;
+        self.context.xs[0] = args.len() as u64;
+        self.context.xs[1] = buffer_start_addr as u64;
+    }
+
     /// Returns the highest `VirtualAddr` that is supported by this system.
     pub fn get_max_va() -> VirtualAddr {
         VirtualAddr::from(USER_IMG_BASE + USER_MAX_VM_SIZE)
