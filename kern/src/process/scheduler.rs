@@ -42,6 +42,11 @@ impl GlobalScheduler {
         self.critical(move |scheduler| scheduler.add(process))
     }
 
+    /// Perform a function on the currently running process.
+    pub fn with_running<T, F: FnOnce(&mut Process) -> T>(&self, f: F) -> Option<T> {
+        self.critical(move |scheduler| scheduler.with_running(f))
+    }
+
     /// Forks the current process and returns the child process's ID.
     pub fn fork(&self, tf: &TrapFrame) -> Option<Id> {
         self.critical(move |scheduler| scheduler.fork(tf))
@@ -183,6 +188,13 @@ impl Scheduler {
                 let child = parent.fork(tf);
                 self.add(child)
             },
+            None => None
+        }
+    }
+
+    fn with_running<T, F: FnOnce(&mut Process) -> T>(&mut self, f: F) -> Option<T> {
+        match self.processes.front_mut() {
+            Some(mut front) => Some(f(&mut front)),
             None => None
         }
     }
