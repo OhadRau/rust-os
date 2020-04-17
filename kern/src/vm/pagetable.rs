@@ -297,6 +297,22 @@ impl UserPageTable {
         pt
     }
 
+    pub fn try_alloc(&mut self, va: VirtualAddr, perm: PagePerm) -> &mut [u8] {
+        if va.as_usize() < USER_IMG_BASE {
+            panic!("Virtual address not in user range");
+        }
+
+        let va = va - VirtualAddr::from(USER_IMG_BASE);
+
+        if self.0.is_valid(va) {
+            let entry = self.0.get_entry(va);
+            let mut addr = entry.get_page_addr().expect("Couldn't get page table entry's ADDR field");
+            unsafe { core::slice::from_raw_parts_mut(addr.as_mut_ptr(), PAGE_SIZE) }
+        } else {
+            self.alloc(va, perm)
+        }
+    }
+
     /// Allocates a page and set an L3 entry translates given virtual address to the
     /// physical address of the allocated page. Returns the allocated page.
     ///
@@ -317,7 +333,6 @@ impl UserPageTable {
         if self.0.is_valid(va) {
             panic!("Can't allocate the same page twice");
         }
-
 
         let frame = unsafe { ALLOCATOR.alloc(Page::layout()) };
         if frame.is_null() {
