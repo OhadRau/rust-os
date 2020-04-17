@@ -28,6 +28,17 @@ pub fn sys_sleep(ms: u32, tf: &mut TrapFrame) {
     SCHEDULER.switch(State::Waiting(is_ready), tf);
 }
 
+/// Returns current process's ID.
+///
+/// This system call does not take parameter.
+///
+/// In addition to the usual status value, this system call returns a
+/// parameter: the current process's ID.
+pub fn sys_getpid(tf: &mut TrapFrame) {
+    tf.xs[0] = tf.tpidr; // return PID from trapframe
+    tf.xs[7] = 1; // success
+}
+
 /// Returns current time.
 ///
 /// This system call does not take parameter.
@@ -53,34 +64,38 @@ pub fn sys_exit(tf: &mut TrapFrame) {
     let _ = SCHEDULER.kill(tf);
 }
 
+/// Read from console.
+///
+/// This system call does not take parameter.
+///
+/// In addition to the usual status value, this system call returns one
+/// parameters:
+///  - the read character
+pub fn sys_input(tf: &mut TrapFrame) {
+    tf.xs[0] = CONSOLE.lock().read_byte() as u64;
+    tf.xs[7] = 1; // success
+}
+
 /// Write to console.
 ///
 /// This system call takes one parameter: a u8 character to print.
 ///
 /// It only returns the usual status value.
-pub fn sys_write(b: u8, tf: &mut TrapFrame) {
+pub fn sys_output(b: u8, tf: &mut TrapFrame) {
     CONSOLE.lock().write_byte(b);
-    tf.xs[7] = 1; // success
-}
-
-/// Returns current process's ID.
-///
-/// This system call does not take parameter.
-///
-/// In addition to the usual status value, this system call returns a
-/// parameter: the current process's ID.
-pub fn sys_getpid(tf: &mut TrapFrame) {
-    tf.xs[0] = tf.tpidr; // return PID from trapframe
     tf.xs[7] = 1; // success
 }
 
 pub fn handle_syscall(num: u16, tf: &mut TrapFrame) {
     match num as usize {
-        NR_SLEEP => sys_sleep(tf.xs[0] as u32, tf),
-        NR_TIME => sys_time(tf),
-        NR_EXIT => sys_exit(tf),
-        NR_WRITE => sys_write(tf.xs[0] as u8, tf),
-        NR_GETPID => sys_getpid(tf),
+        SYS_EXIT => sys_exit(tf),
+        SYS_SLEEP => sys_sleep(tf.xs[0] as u32, tf),
+        SYS_GETPID => sys_getpid(tf),
+
+        SYS_TIME => sys_time(tf),
+        SYS_INPUT => sys_input(tf),
+        SYS_OUTPUT => sys_output(tf.xs[0] as u8, tf),
+
         _ => {
             tf.xs[7] = OsError::Unknown as u64;
         }

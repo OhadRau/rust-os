@@ -1,0 +1,14 @@
+[package]
+name = "echo"
+version = "0.1.0"
+authors = [
+    "Ohad Rau <orau3@gatech.edu>"
+]
+edition = "2018"
+
+[package.metadata.cargo-xbuild]
+memcpy = true
+
+[dependencies]
+aarch64 = { path = "../../lib/aarch64/" }
+kernel_api = { path = "../../lib/kernel_api" }

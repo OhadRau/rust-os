@@ -1,9 +1,9 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
 
 IMG=fs.img
 MNT=mnt
 
-PROGS=(sleep fib)
+PROGS=(sleep fib echo)
 
 for d in ${PROGS[@]}; do
     (cd $d; make build)

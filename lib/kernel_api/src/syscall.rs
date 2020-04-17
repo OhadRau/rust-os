@@ -15,6 +15,14 @@ macro_rules! err_or {
     }};
 }
 
+pub fn exit() -> ! {
+    unsafe {
+        asm!("svc $0" :: "i"(SYS_EXIT) :: "volatile");
+    }
+
+    loop {}
+}
+
 pub fn sleep(span: Duration) -> OsResult<Duration> {
     if span.as_millis() > core::u64::MAX as u128 {
         panic!("too big!");
@@ -30,12 +38,30 @@ pub fn sleep(span: Duration) -> OsResult<Duration> {
               mov $0, x0
               mov $1, x7"
              : "=r"(elapsed_ms), "=r"(ecode)
-             : "r"(ms), "i"(NR_SLEEP)
+             : "r"(ms), "i"(SYS_SLEEP)
              : "x0", "x7"
              : "volatile");
     }
 
     err_or!(ecode, Duration::from_millis(elapsed_ms))
+}
+
+pub fn getpid() -> u64 {
+    let mut ecode: u64;
+    let mut pid: u64;
+
+    unsafe {
+        asm!("svc $2
+              mov $0, x0
+              mov $1, x7"
+             : "=r"(pid), "=r"(ecode)
+             : "i"(SYS_GETPID)
+             : "x0", "x7"
+             : "volatile");
+    }
+
+    assert_eq!(ecode, 1);
+    pid
 }
 
 pub fn time() -> Duration {
@@ -49,7 +75,7 @@ pub fn time() -> Duration {
               mov $1, x1
               mov $2, x7"
              : "=r"(secs), "=r"(nanos), "=r"(ecode)
-             : "i"(NR_TIME)
+             : "i"(SYS_TIME)
              : "x0", "x1", "x7"
              : "volatile");
     }
@@ -58,15 +84,25 @@ pub fn time() -> Duration {
     Duration::new(secs, nanos as u32)
 }
 
-pub fn exit() -> ! {
+pub fn input() -> u8 {
+    let mut ecode: u64;
+    let mut byte: u8;
+
     unsafe {
-        asm!("svc $0" :: "i"(NR_EXIT) :: "volatile");
+        asm!("svc $2
+              mov $0, x0
+              mov $1, x7"
+             : "=r"(byte), "=r"(ecode)
+             : "i"(SYS_INPUT)
+             : "x0", "x7"
+             : "volatile");
     }
 
-    loop {}
+    assert_eq!(ecode, 1);
+    byte
 }
 
-pub fn write(b: u8) {
+pub fn output(b: u8) {
     let mut ecode: u64;
 
     unsafe {
@@ -74,39 +110,20 @@ pub fn write(b: u8) {
               svc $2
               mov $0, x7"
              : "=r"(ecode)
-             : "r"(b), "i"(NR_WRITE)
+             : "r"(b), "i"(SYS_OUTPUT)
              : "x0", "x7"
              : "volatile");
     }
 
     assert_eq!(ecode, 1);
 }
-
-pub fn getpid() -> u64 {
-    let mut ecode: u64;
-    let mut pid: u64;
-
-    unsafe {
-        asm!("svc $2
-              mov $0, x0
-              mov $1, x7"
-             : "=r"(pid), "=r"(ecode)
-             : "i"(NR_GETPID)
-             : "x0", "x7"
-             : "volatile");
-    }
-
-    assert_eq!(ecode, 1);
-    pid
-}
-
 
 struct Console;
 
 impl fmt::Write for Console {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         for b in s.bytes() {
-            write(b);
+            output(b);
         }
         Ok(())
     }

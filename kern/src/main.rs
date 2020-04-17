@@ -65,8 +65,8 @@ fn kmain() -> ! {
         VMM.initialize();
 
         kprintln!("Initializing scheduler");
-        //SCHEDULER.initialize();
-        //SCHEDULER.start();
+        SCHEDULER.initialize();
+        SCHEDULER.start();
     }
 
     loop {

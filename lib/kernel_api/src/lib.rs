@@ -72,8 +72,36 @@ impl core::convert::From<io::Error> for OsError {
     }
 }
 
-pub const NR_SLEEP: usize = 1;
-pub const NR_TIME: usize = 2;
-pub const NR_EXIT: usize = 3;
-pub const NR_WRITE: usize = 4;
-pub const NR_GETPID: usize = 5;
+// Scheduler syscalls
+pub const SYS_EXIT: usize = 1;
+pub const SYS_SLEEP: usize = 2;
+pub const SYS_GETPID: usize = 3;
+pub const SYS_FORK: usize = 4;
+pub const SYS_EXEC: usize = 5;
+pub const SYS_REQUEST_PAGE: usize = 6;
+
+// Miscellaneous I/O syscalls
+pub const SYS_TIME: usize = 10;
+pub const SYS_INPUT: usize = 11;
+pub const SYS_OUTPUT: usize = 12;
+
+// General filesystem syscalls
+pub const SYS_FS_CREATE: usize = 20;
+pub const SYS_FS_METADATA: usize = 21;
+pub const SYS_FS_FLUSH: usize = 22;
+pub const SYS_FS_MOUNT: usize = 23;
+pub const SYS_FS_UNMOUNT: usize = 24;
+
+// File-specific syscalls
+pub const SYS_FILE_OPEN: usize = 30;
+pub const SYS_FILE_SEEK: usize = 31;
+pub const SYS_FILE_READ: usize = 32;
+pub const SYS_FILE_WRITE: usize = 33;
+pub const SYS_FILE_CLOSE: usize = 34;
+pub const SYS_FILE_DELETE: usize = 35;
+
+// Directory-specific syscalls
+pub const SYS_DIR_OPEN: usize = 40;
+pub const SYS_DIR_LIST: usize = 41;
+pub const SYS_DIR_CLOSE: usize = 42;
+pub const SYS_DIR_DELETE: usize = 43;

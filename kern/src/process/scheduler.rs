@@ -117,14 +117,8 @@ _start_next_page:
             crate::SCHEDULER.switch(State::Ready, tf);
         }));
 
-        let a = Process::load("/sleep").expect("couldn't load sleep");
-        let b = Process::load("/fib").expect("couldn't load fib");
-        let c = Process::load("/sleep").expect("couldn't load sleep");
-        let d = Process::load("/fib").expect("couldn't load fib");
+        let a = Process::load("/echo").expect("couldn't load sleep");
         self.add(a).expect("Couldn't get PID");
-        self.add(b).expect("Couldn't get PID");
-        self.add(c).expect("Couldn't get PID");
-        self.add(d).expect("Couldn't get PID");
     }
 
     // The following method may be useful for testing Phase 3:
