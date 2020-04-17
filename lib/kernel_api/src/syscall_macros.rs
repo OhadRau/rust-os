@@ -730,7 +730,7 @@ macro_rules! do_syscall0r {
         let mut ecode: u64;
         asm!(
             "svc $1"
-            : , "={x7}"(ecode)
+            : "={x7}"(ecode)
             : "i"($sys)
             : "memory"
             : "volatile" );
@@ -741,7 +741,7 @@ macro_rules! do_syscall0r {
         let mut ecode: u64;
         asm!(
             "svc $1"
-            : , "={x7}"(ecode)
+            : "={x7}"(ecode)
             : "i"($sys), "{x0}"(i0)
             : "memory"
             : "volatile" );
@@ -752,7 +752,7 @@ macro_rules! do_syscall0r {
         let mut ecode: u64;
         asm!(
             "svc $1"
-            : , "={x7}"(ecode)
+            : "={x7}"(ecode)
             : "i"($sys), "{x0}"(i0), "{x1}"(i1)
             : "memory"
             : "volatile" );
@@ -763,7 +763,7 @@ macro_rules! do_syscall0r {
         let mut ecode: u64;
         asm!(
             "svc $1"
-            : , "={x7}"(ecode)
+            : "={x7}"(ecode)
             : "i"($sys), "{x0}"(i0), "{x1}"(i1), "{x2}"(i2)
             : "memory"
             : "volatile" );
@@ -774,7 +774,7 @@ macro_rules! do_syscall0r {
         let mut ecode: u64;
         asm!(
             "svc $1"
-            : , "={x7}"(ecode)
+            : "={x7}"(ecode)
             : "i"($sys), "{x0}"(i0), "{x1}"(i1), "{x2}"(i2), "{x3}"(i3)
             : "memory"
             : "volatile" );
@@ -785,7 +785,7 @@ macro_rules! do_syscall0r {
         let mut ecode: u64;
         asm!(
             "svc $1"
-            : , "={x7}"(ecode)
+            : "={x7}"(ecode)
             : "i"($sys), "{x0}"(i0), "{x1}"(i1), "{x2}"(i2), "{x3}"(i3), "{x4}"(i4)
             : "memory"
             : "volatile" );
@@ -796,7 +796,7 @@ macro_rules! do_syscall0r {
         let mut ecode: u64;
         asm!(
             "svc $1"
-            : , "={x7}"(ecode)
+            : "={x7}"(ecode)
             : "i"($sys), "{x0}"(i0), "{x1}"(i1), "{x2}"(i2), "{x3}"(i3), "{x4}"(i4), "{x5}"(i5)
             : "memory"
             : "volatile" );
@@ -807,7 +807,7 @@ macro_rules! do_syscall0r {
         let mut ecode: u64;
         asm!(
             "svc $1"
-            : , "={x7}"(ecode)
+            : "={x7}"(ecode)
             : "i"($sys), "{x0}"(i0), "{x1}"(i1), "{x2}"(i2), "{x3}"(i3), "{x4}"(i4), "{x5}"(i5), "{x6}"(i6)
             : "memory"
             : "volatile" );
