@@ -3,6 +3,7 @@ use core::marker::PhantomData;
 use core::mem::size_of;
 
 use alloc::vec::Vec;
+use alloc::string::String;
 
 use shim::{io, ioerr};
 use shim::path;
@@ -71,7 +72,7 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
         let partition; 
         let cached;
         match options {
-            MountOptions::Encrypted(pw) => {
+            MountOptions::Encrypted(Some(pw)) => {
                 let mut crypt_device = match EncryptedDevice::new(pw.as_str(), device) {
                     Some(edev) => edev,
                     None => return Err(Error::Io(
@@ -100,6 +101,9 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
                 cached = CachedPartition::new(device, partition);
 
             }
+            _ =>  return Err(Error::Io(
+                        io::Error::new(io::ErrorKind::InvalidData, "no password supplied")
+                    ))
         }
 
         let num_fats = ebpb.num_fats;
@@ -119,6 +123,33 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
             num_fats,
         };
         Ok(HANDLE::new(vfat))
+    }
+
+    pub fn check_key<T: BlockDevice>(device: &mut T, part_num: usize, key: Option<String>) -> bool 
+    {
+        if let None = key {
+            return false;
+        }
+
+        let mbr = match MasterBootRecord::from(&mut *device) {
+            Ok(mbr) => mbr,
+            _ => return false
+        };
+
+        let start_sector = match mbr.get_partition_start(part_num) {
+            Some(start) => start,
+            None => return false
+        };
+
+        let mut crypt_device = match EncryptedDevice::new(key.unwrap().as_str(), device) {
+            Some(edev) => edev,
+            None => return false
+        };
+
+        match BiosParameterBlock::from(&mut crypt_device, start_sector as u64) {
+            Ok(ebpb) => return true,
+            Err(_) => return false,
+        }
     }
 
     fn lookup_entry(&self, cluster: Cluster) -> (u64, usize) {

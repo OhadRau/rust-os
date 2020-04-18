@@ -434,7 +434,7 @@ fn mount(cwd: &PathBuf, args: &[&str]) {
         return;
     } else if args.len() > 2 {
         if args[2].eq_ignore_ascii_case("-p") {
-            mount_opts = MountOptions::Encrypted(String::from(args[3]));
+            mount_opts = MountOptions::Encrypted(Some(String::from(args[3])));
         } else {
             kprintln!("unknown flag: {}", args[2]);
             return;

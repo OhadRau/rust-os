@@ -4,8 +4,8 @@ pub struct EncryptionParams {
     password: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum MountOptions {
-    Encrypted(String),
+    Encrypted(Option<String>),
     Normal
 }

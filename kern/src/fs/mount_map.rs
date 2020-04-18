@@ -8,9 +8,10 @@ use alloc::vec::Vec;
 use shim::path::{PathBuf, Path};
 use shim::{ioerr, io};
 use crate::fs::PiVFatHandle;
-use crate::console::kprintln;
+use crate::console::{kprintln, kprint, CONSOLE};
 use fat32::mbr::MasterBootRecord;
 use core::fmt;
+use alloc::string::String;
 
 pub struct MapEntry {
     vfat: PiVFatHandle,
@@ -47,7 +48,7 @@ impl MountMap {
     /// mount partition number part_num to mount_point 
     /// pointed to by mount_point. Initializes the VFat
     /// for that partition and inserts it into thee map.
-    pub fn mount<T>(&mut self, mount_point: &PathBuf, device: T, part_num: usize, options: MountOptions) -> io::Result<()>
+    pub fn mount<T>(&mut self, mount_point: &PathBuf, mut device: T, part_num: usize, options: MountOptions) -> io::Result<()>
     // maybe not use static lifetime? vfat uses it
     where T: BlockDevice + 'static, {
         // check that the mount point exists
@@ -63,7 +64,7 @@ impl MountMap {
         self.do_mount(mount_point, device, part_num, options)
     }
 
-    fn do_mount<T>(&mut self, mount_point: &PathBuf, device: T, part_num: usize, options: MountOptions) -> io::Result<()> 
+    fn do_mount<T>(&mut self, mount_point: &PathBuf, mut device: T, part_num: usize, options: MountOptions) -> io::Result<()> 
     where T: BlockDevice + 'static, {
         if self.map.contains_key(&mount_point.clone()) {
             return ioerr!(InvalidData, "mount point already mounted!!");
@@ -71,11 +72,41 @@ impl MountMap {
 
         for (_path, entry) in self.map.iter() {
             if entry.part_num == part_num {
-                return ioerr!(InvalidData, "partition already mounted!!")
+                return ioerr!(InvalidData, "partition already mounted!!");
             }
         }
 
-        let vfat = match VFat::<PiVFatHandle>::from(device, part_num, options.clone()) {
+        let mut key: Option<String> = None;
+        match options {
+            MountOptions::Encrypted(None) => {
+                let mut tries = 0;
+                loop { 
+                    kprint!("enter password for partition #{}: ", part_num);
+                    key = Self::get_key();
+                    if VFat::<PiVFatHandle>::check_key(&mut device, part_num, key.clone()) {
+                        kprintln!("");
+                        break;
+                    } else {
+                        key = None;
+                    }
+                    kprintln!("\nincorrect password!");
+                    tries += 1;
+                    if tries == 3 {
+                        return ioerr!(InvalidData, "too many attempts");
+                    }
+                }
+                
+            }
+            _ => ()
+        }
+        
+        let new_opts = match options {
+            MountOptions::Encrypted(Some(k)) => MountOptions::Encrypted(Some(k.clone())),
+            MountOptions::Encrypted(None) => MountOptions::Encrypted(key),
+            MountOptions::Normal => MountOptions::Normal
+        }; 
+
+        let vfat = match VFat::<PiVFatHandle>::from(device, part_num, new_opts.clone()) {
             Ok(handle) => handle,
             Err(e) => {
                 kprintln!("error initializing filesystem: {:?}", e);
@@ -83,7 +114,7 @@ impl MountMap {
             }
         };
 
-        self.map.insert(mount_point.clone(), Box::new(MapEntry { vfat, part_num, options }));
+        self.map.insert(mount_point.clone(), Box::new(MapEntry { vfat, part_num, options: new_opts }));
         Ok(())
 
     }
@@ -111,12 +142,6 @@ impl MountMap {
             } 
         }
     }
-
-    /*pub fn unmount_all(&mut self) {
-        for key in self.keys() {
-            self.unmount(key);
-        }
-    }*/
 
     /// Takes a path and returns the filesystem that's mounted there,
     /// along with the translated path 
@@ -164,6 +189,50 @@ impl MountMap {
         // prefix of the path we want to translate
         // if it fails, it was probably called incorrectly
         (*path.as_ref().strip_prefix(mount_point.as_ref()).unwrap()).to_path_buf()
+    }
+
+    fn get_key() -> Option<String> {
+        let mut pw_buf = [0u8; 16];
+        let mut count = 0;
+
+        loop {
+            let byte = CONSOLE.lock().read_byte();
+
+            match byte {
+                b'\r' | b'\n' => break,
+                8 | 127 => {
+                    // backspace/delete
+                    if count > 0 {
+                        kprint!("\x08 \x08");
+                        count -= 1;
+                        pw_buf[count] = b' ';
+                    } else { 
+                        kprint!("\x07");
+                    }
+
+                },
+                32..=126 | b'\t' => {
+                    if count < 16 {
+                        pw_buf[count] = byte;
+                        count += 1;
+                        kprint!("*");
+                    } else { 
+                        kprint!("\x07");
+                    }
+                },
+                _ => { 
+                    kprint!("\x07");
+                }
+            }
+        }
+
+        match core::str::from_utf8(&pw_buf) {
+            Ok(pw_str) => {
+                //kprintln!("{}", pw_str);
+                Some(String::from(pw_str))
+            },
+            Err(_) => None
+        }
     }
 }
 

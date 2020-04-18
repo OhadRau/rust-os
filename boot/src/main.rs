@@ -100,14 +100,14 @@ fn kmain() -> ! {
         _ => unimplemented!()
     }
 
-    // verify disk password 
+    // start main kernel
     unsafe { jump_to(BINARY_START) }
 }
 
 fn load_kern_from_disk(mut uart: pi::uart::MiniUart) {
     use shim::io::Read;
     use fat32::traits::File;
-    
+
     uart.write_str(&format!("\nLoading kernel from disk at path: /{}...", KERNEL_IMG_NAME));
 
     let mut fs = init_fs(&mut uart).unwrap();

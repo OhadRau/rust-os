@@ -11,6 +11,7 @@ use shim::path::{Path, PathBuf};
 pub use fat32::traits;
 use fat32::vfat::{Dir, Entry, File, VFat, VFatHandle};
 use blockdev::mount::MountOptions;
+use blockdev::block_device::BlockDevice;
 
 use sd::sd::Sd;
 use self::mount_map::MountMap;
@@ -76,8 +77,12 @@ impl FileSystem {
 
         // mount the root FS
         let mut mount_map = MountMap::new();
+        let (part_num, opts) = match Self::parse_fstab(Sd {}) {
+            Some((part_num, opts)) => (part_num, opts),
+            None => panic!("unable to parse fstab")
+        };
         //match mount_map.mount_root(sd, 2, MountOptions::Encrypted(String::from("cs3210!"))) {
-        match mount_map.mount_root(sd, 1, MountOptions::Normal) {
+        match mount_map.mount_root(sd, part_num, opts) {
             Ok(_) => (),
             Err(e) => {
                 kprintln!("error mounting root FS: {:?}", e);
@@ -128,6 +133,40 @@ impl FileSystem {
             }
         }
     }
+
+    fn parse_fstab<T>(device: T) -> Option<(usize, MountOptions)> 
+    where T: BlockDevice + 'static 
+    {
+        use fat32::traits::FileSystem;
+        use shim::io::Read;
+        // boot part for now is always going to be partition 1
+        // we could look for bootable parts later if we wanted
+        let fs = match VFat::<PiVFatHandle>::from(device, 1, MountOptions::Normal) {
+            Ok(handle) => handle,
+            Err(e) => {
+                kprintln!("error initializing boot partition: {:?}", e);
+                return None;
+            }
+        };
+
+        let mut fd = fs.open_file("/fstab").expect("Couldn't find fstab!!");
+        // this is super jank but it's fine for our purposes
+        // we should add some validation
+        let mut read_buf = [0u8; 3];
+        fd.read_exact(&mut read_buf);
+        
+        let part_num = (read_buf[0] - '0' as u8) as usize;
+        let encrypted = read_buf[2] == '1' as u8;
+
+        kprintln!("selected root partition: {}", part_num);
+        if encrypted {
+            Some((part_num, MountOptions::Encrypted(None)))
+        } else {
+            Some((part_num, MountOptions::Normal))
+        }
+    }
+
+    
 }
 
 // Implement `fat32::traits::FileSystem` for `&FileSystem`
