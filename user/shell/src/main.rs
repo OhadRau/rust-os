@@ -23,6 +23,29 @@ fn parse_command<'a>(buffer: &'a [u8], args_buf: &'a mut [&'a str]) -> Option<&'
 
 fn run_program(program: &str, args: &[&str]) {
     if program == "exit" { exit() }
+
+    let mut full_buf = [0u8; 128];
+    let program = if program.chars().nth(0) != Some('/') {
+        let mut path_buf = [0u8; 128];
+        let path_string = unsafe { core::str::from_utf8_unchecked_mut(&mut path_buf) };
+        let path = match env_get("PATH", path_string) {
+            Ok(len) => &path_string[0..len],
+            Err(_)  => {
+                println!("Path is relative, but $PATH doesn't exist");
+                return
+            },
+        };
+
+        let full_length = path.len() + program.len();
+        if full_length > full_buf.len() {
+            println!("Path name is too long: {}{}", path, program);
+            return
+        }
+        full_buf[0..path.len()].copy_from_slice(&path.as_bytes());
+        full_buf[path.len()..full_length].copy_from_slice(&program.as_bytes());
+        core::str::from_utf8(&full_buf[0..full_length]).expect("Couldn't concat strings")
+    } else { program };
+
     match fork() {
         Ok(0) => match exec(program, args) {
             Ok(()) => (),
@@ -37,6 +60,7 @@ fn run_program(program: &str, args: &[&str]) {
 }
 
 fn main(_args: &[&str]) {
+    let _ = env_set("PATH", "/bin/").expect("Couldn't set $PATH");
     let _ = env_set("CWD", "/").expect("Couldn't set $CWD");
     let mut cwd_buf = [0u8; 128];
     let cwd_string = unsafe { core::str::from_utf8_unchecked_mut(&mut cwd_buf) };
@@ -45,19 +69,24 @@ fn main(_args: &[&str]) {
         Err(e)  => println!("Couldn't read $CWD: {:?}", e),
     };
 
-    match fs_open("/fib") {
-        Ok(fd) => println!("/fib: {:?}", fd),
-        Err(e) => println!("Couldn't open /fib: {:?}", e),
+    match fs_open("/bin/fib") {
+        Ok(fd) => println!("/bin/fib: {:?}", fd),
+        Err(e) => println!("Couldn't open /bin/fib: {:?}", e),
     }
 
-    match fs_open("/fib") {
-        Ok(fd) => println!("/fib: {:?}", fd),
-        Err(e) => println!("Couldn't open /fib: {:?}", e),
+    match fs_open("/bin/fib") {
+        Ok(fd) => println!("/bin/fib: {:?}", fd),
+        Err(e) => println!("Couldn't open /bin/fib: {:?}", e),
     }
 
-    match fs_open("/echo") {
-        Ok(fd) => { println!("/echo: {:?}", fd); fs_close(&fd); },
-        Err(e) => println!("Couldn't open /echo: {:?}", e),
+    match fs_open("/bin/echo") {
+        Ok(fd) => { println!("/bin/echo: {:?}", fd); fs_close(&fd); },
+        Err(e) => println!("Couldn't open /bin/echo: {:?}", e),
+    }
+
+    match fs_open("/bin/echo") {
+        Ok(fd) => println!("/bin/echo: {:?}", fd),
+        Err(e) => println!("Couldn't open /bin/echo: {:?}", e),
     }
 
     match fs_create("/foo", EntryKind::Dir) {

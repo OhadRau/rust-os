@@ -134,7 +134,7 @@ _start_next_page:
             crate::SCHEDULER.switch(State::Ready, tf);
         }));
 
-        let a = Process::load("/shell").expect("couldn't load shell");
+        let a = Process::load("/bin/shell").expect("couldn't load shell");
         self.add(a).expect("Couldn't get PID");
     }
 
