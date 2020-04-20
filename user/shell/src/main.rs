@@ -5,7 +5,7 @@
 mod cr0;
 
 use kernel_api::{print, println, EntryKind};
-use kernel_api::syscall::{input, output, env_get, env_set, fork, fs_create, fs_open, fs_close, exec, wait_pid, exit};
+use kernel_api::syscall::{input, output, env_get, env_set, fork, fs_create, fs_open, fs_close, fs_delete, exec, wait_pid, exit};
 
 fn parse_command<'a>(buffer: &'a [u8], args_buf: &'a mut [&'a str]) -> Option<&'a [&'a str]> {
     let mut start = 0;
@@ -60,19 +60,19 @@ fn main(_args: &[&str]) {
         Err(e) => println!("Couldn't open /echo: {:?}", e),
     }
 
-    match fs_open("/echo") {
-        Ok(fd) => println!("/echo: {:?}", fd),
-        Err(e) => println!("Couldn't open /echo: {:?}", e),
+    match fs_create("/foo", EntryKind::Dir) {
+        Ok(_)  => println!("Created /foo"),
+        Err(e) => println!("Couldn't create /foo: {:?}", e),
     }
 
     match fs_open("/foo") {
-        Ok(fd) => println!("/foo: {:?}", fd),
+        Ok(fd) => { println!("/foo: {:?}", fd); fs_close(&fd); },
         Err(e) => println!("Couldn't open /foo: {:?}", e),
     }
 
-    match fs_create("/foo", EntryKind::Dir) {
-        Ok(_) => println!("Created /foo"),
-        Err(e) => println!("Couldn't create /foo: {:?}", e),
+    match fs_delete("/foo") {
+        Ok(_)  => println!("Deleted /foo"),
+        Err(e) => println!("Couldn't delete /foo: {:?}", e),
     }
 
     match fs_open("/foo") {

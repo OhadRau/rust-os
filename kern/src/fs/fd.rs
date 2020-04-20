@@ -43,7 +43,7 @@ impl FdTable {
 
   pub fn open(&mut self, path: PathBuf) -> io::Result<Fd> {
     if self.busy_paths.contains(&path) {
-      return ioerr!(PermissionDenied, "That file is already in use by another process")
+      return ioerr!(AddrInUse, "That file is already in use by another process")
     }
 
     let key = Fd(self.next_free);

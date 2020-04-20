@@ -325,6 +325,42 @@ pub fn sys_fs_close(fd: Fd, tf: &mut TrapFrame) {
     });
 }
 
+pub fn sys_fs_delete(path_ptr: *const u8, path_len: usize, tf: &mut TrapFrame) {
+    use shim::io;
+    use fat32::traits::{Dir, Entry, File};
+
+    let path = match parse_path(path_ptr, path_len) {
+        Some(path) => path,
+        None => {
+            tf.xs[7] = 70; // Invalid argument
+            return
+        },
+    };
+
+    let err = SCHEDULER.with_running(|process| {
+        let fd = process.fd_table.open(path)?;
+        process.fd_table.critical(&fd, move |entry| -> io::Result<()> {
+            if entry.is_file() {
+                entry.as_file_mut().expect("Unable to open file as file").delete()
+            } else {
+                entry.as_dir_mut().expect("Unable to open dir as dir").delete()
+            }
+        }).and_then(|x| x)?;
+        process.fd_table.close(&fd)
+    });
+
+    match err {
+        Some(Ok(_)) => tf.xs[7] = 1, // Success
+        Some(Err(e)) => match e.kind() {
+            io::ErrorKind::NotFound         => tf.xs[7] = 10,  // No entry
+            io::ErrorKind::PermissionDenied => tf.xs[7] = 40,  // No access
+            io::ErrorKind::AddrInUse        => tf.xs[7] = 201, // Already open
+            _                               => tf.xs[7] = 0,   // Unknown
+        },
+        None => tf.xs[7] = 0, // Unknown
+    }
+}
+
 pub fn handle_syscall(num: u16, tf: &mut TrapFrame) {
     match num as usize {
         SYS_EXIT => sys_exit(tf),
@@ -343,6 +379,7 @@ pub fn handle_syscall(num: u16, tf: &mut TrapFrame) {
         SYS_FS_CREATE => sys_fs_create(tf.xs[0] as *const u8, tf.xs[1] as usize, EntryKind::from(tf.xs[2]), tf),
         SYS_FS_OPEN => sys_fs_open(tf.xs[0] as *const u8, tf.xs[1] as usize, tf),
         SYS_FS_CLOSE => sys_fs_close(Fd::from(tf.xs[0]), tf),
+        SYS_FS_DELETE => sys_fs_delete(tf.xs[0] as *const u8, tf.xs[1] as usize, tf),
 
         _ => {
             tf.xs[7] = OsError::Unknown as u64;

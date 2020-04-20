@@ -95,6 +95,13 @@ pub fn fs_close(fd: &Fd) -> OsResult<()> {
     unsafe { do_syscall0r!(SYS_FS_CLOSE, fd.as_u64()) }
 }
 
+pub fn fs_delete(path: &str) -> OsResult<()> {
+    let path_ptr = &path.as_bytes()[0] as *const u8 as u64;
+    let path_len = path.len() as u64;
+
+    unsafe { do_syscall0r!(SYS_FS_DELETE, path_ptr, path_len) }
+}
+
 struct Console;
 
 impl fmt::Write for Console {
