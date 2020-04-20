@@ -4,8 +4,8 @@
 
 mod cr0;
 
-use kernel_api::{print, println};
-use kernel_api::syscall::{input, output, env_get, env_set, fork, fs_open, fs_close, exec, wait_pid, exit};
+use kernel_api::{print, println, EntryKind};
+use kernel_api::syscall::{input, output, env_get, env_set, fork, fs_create, fs_open, fs_close, exec, wait_pid, exit};
 
 fn parse_command<'a>(buffer: &'a [u8], args_buf: &'a mut [&'a str]) -> Option<&'a [&'a str]> {
     let mut start = 0;
@@ -63,6 +63,16 @@ fn main(_args: &[&str]) {
     match fs_open("/echo") {
         Ok(fd) => println!("/echo: {:?}", fd),
         Err(e) => println!("Couldn't open /echo: {:?}", e),
+    }
+
+    match fs_open("/foo") {
+        Ok(fd) => println!("/foo: {:?}", fd),
+        Err(e) => println!("Couldn't open /foo: {:?}", e),
+    }
+
+    match fs_create("/foo", EntryKind::Dir) {
+        Ok(_) => println!("Created /foo"),
+        Err(e) => println!("Couldn't create /foo: {:?}", e),
     }
 
     match fs_open("/foo") {

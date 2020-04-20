@@ -90,6 +90,28 @@ impl core::convert::From<u64> for Fd {
   }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum EntryKind { File, Dir }
+
+impl EntryKind {
+  pub fn as_u64(&self) -> u64 {
+    match self {
+      EntryKind::File => 0,
+      EntryKind::Dir => 1,
+    }
+  }
+}
+
+impl core::convert::From<u64> for EntryKind {
+  fn from(e: u64) -> Self {
+    match e {
+      0 => EntryKind::File,
+      1 => EntryKind::Dir,
+      _ => panic!("Unknown EntryKind"),
+    }
+  }
+}
+
 // Scheduler syscalls
 pub const SYS_EXIT: usize = 1;
 pub const SYS_SLEEP: usize = 2;

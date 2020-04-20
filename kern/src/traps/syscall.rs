@@ -240,6 +240,62 @@ fn parse_path(path_ptr: *const u8, path_len: usize) -> Option<PathBuf> {
     canonicalize(raw_path)
 }
 
+pub fn sys_fs_create(path_ptr: *const u8, path_len: usize, kind: EntryKind, tf: &mut TrapFrame) {
+    use fat32::traits::{Dir, Entry};
+    use shim::{io, ioerr};
+
+    let path = match parse_path(path_ptr, path_len) {
+        Some(path) => path,
+        None => {
+            tf.xs[7] = 70; // Invalid argument
+            return
+        },
+    };
+
+    let parent = path.parent().unwrap_or(&PathBuf::from("/")).to_path_buf();
+    let child = path.file_name().expect("Must provide filename to create")
+                    .to_str().expect("Could not convert filename to string");
+
+    // TODO: Verify that the name is valid
+
+    let attributes = match kind {
+        EntryKind::File => fat32::vfat::Attributes::default(),
+        EntryKind::Dir => fat32::vfat::Attributes::default().dir(),
+    };
+
+    let err = SCHEDULER.with_running(|process: &mut crate::process::Process| -> io::Result<()> {
+        let parent_fd = process.fd_table.open(parent)?;
+        process.fd_table.critical(&parent_fd, move |entry| -> io::Result<()> {
+            let dir = match entry.as_dir_mut() {
+                Some(dir) => dir,
+                None => return ioerr!(InvalidInput, ""),
+            };
+
+            // Don't create a duplicate if it already exists
+            if let Ok(found) = dir.find(child) {
+                match (kind, found.is_dir()) {
+                    (EntryKind::Dir, true) => return Ok(()),
+                    (EntryKind::File, false) => return Ok(()),
+                    (_, _) => return ioerr!(AlreadyExists, ""),
+                }
+            }
+
+            dir.create(fat32::vfat::Metadata {
+                name: String::from(child),
+                attributes,
+                ..Default::default()
+            }).map(|_| ())
+        }).and_then(|x| x)?;
+        process.fd_table.close(&parent_fd)
+    });
+
+    // TODO: Actually interpret the IO errors
+    match err {
+        Some(Ok(_)) => tf.xs[7] = 1, // Success
+        _ => tf.xs[7] = 0, // Unknown error
+    }
+}
+
 pub fn sys_fs_open(path_ptr: *const u8, path_len: usize, tf: &mut TrapFrame) {
     let path = match parse_path(path_ptr, path_len) {
         Some(path) => path,
@@ -284,6 +340,7 @@ pub fn handle_syscall(num: u16, tf: &mut TrapFrame) {
         SYS_ENV_GET => sys_env_get(tf.xs[0] as *const u8, tf.xs[1] as usize, tf.xs[2] as *mut u8, tf.xs[3] as usize, tf),
         SYS_ENV_SET => sys_env_set(tf.xs[0] as *const u8, tf.xs[1] as usize, tf.xs[2] as *const u8, tf.xs[3] as usize, tf),
 
+        SYS_FS_CREATE => sys_fs_create(tf.xs[0] as *const u8, tf.xs[1] as usize, EntryKind::from(tf.xs[2]), tf),
         SYS_FS_OPEN => sys_fs_open(tf.xs[0] as *const u8, tf.xs[1] as usize, tf),
         SYS_FS_CLOSE => sys_fs_close(Fd::from(tf.xs[0]), tf),
 
