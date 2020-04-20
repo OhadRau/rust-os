@@ -3,7 +3,7 @@
 IMG=fs.img
 MNT=mnt
 
-PROGS=(sleep fib echo shell mkdir)
+PROGS=(sleep fib echo shell mkdir touch rm)
 
 for d in ${PROGS[@]}; do
     (cd $d; make build)

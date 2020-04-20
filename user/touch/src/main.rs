@@ -32,8 +32,8 @@ fn main(args: &[&str]) {
             full_buf[cwd.len()..full_length].copy_from_slice(&arg.as_bytes());
             core::str::from_utf8(&full_buf[0..full_length]).expect("Couldn't concat strings")
         };
-        if let Err(e) = fs_create(path, EntryKind::Dir) {
-            println!("Error while creating directory {}: {:?}", arg, e);
+        if let Err(e) = fs_create(path, EntryKind::File) {
+            println!("Error while creating file {}: {:?}", arg, e);
         }
     }
 }

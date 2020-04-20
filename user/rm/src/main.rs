@@ -4,8 +4,8 @@
 
 mod cr0;
 
-use kernel_api::{println, EntryKind};
-use kernel_api::syscall::{env_get, fs_create};
+use kernel_api::println;
+use kernel_api::syscall::{env_get, fs_delete};
 
 fn main(args: &[&str]) {
     let mut cwd_buf = [0u8; 128];
@@ -32,8 +32,8 @@ fn main(args: &[&str]) {
             full_buf[cwd.len()..full_length].copy_from_slice(&arg.as_bytes());
             core::str::from_utf8(&full_buf[0..full_length]).expect("Couldn't concat strings")
         };
-        if let Err(e) = fs_create(path, EntryKind::Dir) {
-            println!("Error while creating directory {}: {:?}", arg, e);
+        if let Err(e) = fs_delete(path) {
+            println!("Error while deleting file {}: {:?}", arg, e);
         }
     }
 }
