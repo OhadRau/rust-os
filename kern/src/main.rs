@@ -29,7 +29,7 @@ pub mod vm;
 use console::kprintln;
 
 use allocator::Allocator;
-use fs::FileSystem;
+use fs::{FileSystem,fd::GlobalFdTable};
 use process::GlobalScheduler;
 use traps::irq::Irq;
 use vm::VMManager;
@@ -37,6 +37,7 @@ use vm::VMManager;
 #[cfg_attr(not(test), global_allocator)]
 pub static ALLOCATOR: Allocator = Allocator::uninitialized();
 pub static FILESYSTEM: FileSystem = FileSystem::uninitialized();
+pub static FILE_DESCRIPTOR_TABLE: GlobalFdTable = GlobalFdTable::uninitialized();
 pub static SCHEDULER: GlobalScheduler = GlobalScheduler::uninitialized();
 pub static VMM: VMManager = VMManager::uninitialized();
 pub static IRQ: Irq = Irq::uninitialized();
@@ -57,6 +58,9 @@ fn kmain() -> ! {
         
         kprintln!("Initializing filesystem");
         FILESYSTEM.initialize();
+
+        kprintln!("Initializing file descriptor table");
+        FILE_DESCRIPTOR_TABLE.initialize();
 
         kprintln!("Initializing IRQ");
         IRQ.initialize();

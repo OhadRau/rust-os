@@ -75,6 +75,21 @@ impl core::convert::From<io::Error> for OsError {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct Fd(u64);
+
+impl Fd {
+  pub fn as_u64(&self) -> u64 {
+    self.0
+  }
+}
+
+impl core::convert::From<u64> for Fd {
+  fn from(d: u64) -> Self {
+    Fd(d)
+  }
+}
+
 // Scheduler syscalls
 pub const SYS_EXIT: usize = 1;
 pub const SYS_SLEEP: usize = 2;

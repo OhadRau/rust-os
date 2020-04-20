@@ -12,6 +12,7 @@ use crate::param::*;
 use crate::process::State;
 use crate::traps::TrapFrame;
 use crate::vm::*;
+use crate::fs::fd::LocalFdTable;
 use kernel_api::{OsError, OsResult};
 
 /// Type alias for the type of a process ID.
@@ -28,6 +29,8 @@ pub struct Process {
     pub state: State,
     /// Reference to tell us if the process has died
     pub dead: Arc<AtomicBool>,
+    /// Table of available file descriptors
+    pub fd_table: LocalFdTable,
     /// Environment variables
     pub env: HashMap<String, String>,
 }
@@ -46,6 +49,7 @@ impl Process {
             vmap: Box::new(UserPageTable::new()),
             state,
             dead: Arc::new(AtomicBool::new(false)),
+            fd_table: LocalFdTable::new(),
             env: HashMap::new(),
         })
     }
@@ -56,6 +60,7 @@ impl Process {
             vmap: Box::new(self.vmap.duplicate()),
             state: State::Ready,
             dead: Arc::new(AtomicBool::new(false)),
+            fd_table: self.fd_table.clone(),
             env: self.env.clone(),
         }
     }

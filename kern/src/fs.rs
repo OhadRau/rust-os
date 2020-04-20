@@ -1,9 +1,8 @@
 pub mod sd;
+pub mod fd;
 pub mod mount_map;
 
-
 use alloc::rc::Rc;
-use alloc::string::String;
 use core::fmt::{self, Debug};
 use shim::io;
 use shim::ioerr;
