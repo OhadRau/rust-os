@@ -88,6 +88,9 @@ pub const SYS_REQUEST_PAGE: usize = 7;
 pub const SYS_TIME: usize = 10;
 pub const SYS_INPUT: usize = 11;
 pub const SYS_OUTPUT: usize = 12;
+pub const SYS_ENV_GET: usize = 13;
+pub const SYS_ENV_SET: usize = 14;
+pub const SYS_ENV_VARS: usize = 15;
 
 // General filesystem syscalls
 pub const SYS_FS_CREATE: usize = 20;

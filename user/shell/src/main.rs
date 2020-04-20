@@ -5,7 +5,7 @@
 mod cr0;
 
 use kernel_api::{print, println};
-use kernel_api::syscall::{input, output, fork, exec, wait_pid, exit};
+use kernel_api::syscall::{input, output, env_get, env_set, fork, exec, wait_pid, exit};
 
 fn parse_command<'a>(buffer: &'a [u8], args_buf: &'a mut [&'a str]) -> Option<&'a [&'a str]> {
     let mut start = 0;
@@ -37,6 +37,14 @@ fn run_program(program: &str, args: &[&str]) {
 }
 
 fn main(_args: &[&str]) {
+    let _ = env_set("CWD", "/").expect("Couldn't set $CWD");
+    let mut cwd_buf = [0u8; 128];
+    let cwd_string = unsafe { core::str::from_utf8_unchecked_mut(&mut cwd_buf) };
+    match env_get("CWD", cwd_string) {
+        Ok(len) => println!("$CWD: {:?}", &cwd_string[0..len]),
+        Err(e)  => println!("Couldn't read $CWD: {:?}", e),
+    };
+
     loop {
         print!("sh> ");
 

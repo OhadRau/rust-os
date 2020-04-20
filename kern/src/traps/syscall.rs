@@ -1,4 +1,5 @@
 use alloc::boxed::Box;
+use alloc::string::String;
 
 use crate::console::CONSOLE;
 use crate::process::State;
@@ -150,6 +151,66 @@ pub fn sys_output(b: u8, tf: &mut TrapFrame) {
     tf.xs[7] = 1; // success
 }
 
+pub fn sys_env_get(var_ptr: *const u8, var_len: usize, val_ptr: *mut u8, val_len: usize, tf: &mut TrapFrame) {
+    let var_slice = unsafe { core::slice::from_raw_parts(var_ptr, var_len) };
+    let var_string = match core::str::from_utf8(var_slice) {
+        Ok(var_string) => var_string,
+        Err(_) => {
+            tf.xs[7] = 70; // Invalid argument
+            return
+        }
+    };
+
+    let val_buf = unsafe { core::slice::from_raw_parts_mut(val_ptr, val_len) };
+
+    match SCHEDULER.with_running(|process| -> Option<String> {
+        process.env.get(var_string).map(String::from)
+    }).and_then(|x| x) {
+        Some(string) => {
+            let length = core::cmp::min(string.len(), val_buf.len());
+            if length == string.len() {
+                val_buf[0..length].copy_from_slice(&string.as_bytes()[0..length]);
+                tf.xs[0] = length as u64; // length bytes read
+                tf.xs[7] = 1; // Success
+            } else {
+                tf.xs[7] = 20; // No memory
+            }
+        },
+        None => {
+            tf.xs[7] = 10; // No entry
+        }
+    }
+}
+
+pub fn sys_env_set(var_ptr: *const u8, var_len: usize, val_ptr: *const u8, val_len: usize, tf: &mut TrapFrame) {
+    let var_slice = unsafe { core::slice::from_raw_parts(var_ptr, var_len) };
+    let var_string = match core::str::from_utf8(var_slice) {
+        Ok(var_string) => var_string,
+        Err(_) => {
+            tf.xs[7] = 70; // Invalid argument
+            tf.xs[0] = 0; // 0 bytes read
+            return
+        }
+    };
+
+    let val_slice = unsafe { core::slice::from_raw_parts(val_ptr, val_len) };
+    let val_string = match core::str::from_utf8(val_slice) {
+        Ok(val_string) => val_string,
+        Err(_) => {
+            tf.xs[7] = 70; // Invalid argument
+            tf.xs[0] = 0; // 0 bytes read
+            return
+        }
+    };
+
+    match SCHEDULER.with_running(|process| {
+        let _ = process.env.insert(String::from(var_string), String::from(val_string));
+    }) {
+        Some(_) => tf.xs[7] = 1, // Success
+        None => tf.xs[7] = 0, // Unknown error
+    }
+}
+
 pub fn handle_syscall(num: u16, tf: &mut TrapFrame) {
     match num as usize {
         SYS_EXIT => sys_exit(tf),
@@ -162,6 +223,8 @@ pub fn handle_syscall(num: u16, tf: &mut TrapFrame) {
         SYS_TIME => sys_time(tf),
         SYS_INPUT => sys_input(tf),
         SYS_OUTPUT => sys_output(tf.xs[0] as u8, tf),
+        SYS_ENV_GET => sys_env_get(tf.xs[0] as *const u8, tf.xs[1] as usize, tf.xs[2] as *mut u8, tf.xs[3] as usize, tf),
+        SYS_ENV_SET => sys_env_set(tf.xs[0] as *const u8, tf.xs[1] as usize, tf.xs[2] as *const u8, tf.xs[3] as usize, tf),
 
         _ => {
             tf.xs[7] = OsError::Unknown as u64;
