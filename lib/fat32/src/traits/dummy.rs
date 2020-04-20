@@ -86,6 +86,12 @@ impl Entry for Dummy {
     fn as_dir(&self) -> Option<&Self::Dir> {
         panic!("Dummy")
     }
+    fn as_file_mut(&mut self) -> Option<&mut Self::File> {
+        panic!("Dummy")
+    }
+    fn as_dir_mut(&mut self) -> Option<&mut Self::Dir> {
+        panic!("Dummy")
+    }
     fn into_file(self) -> Option<Self::File> {
         panic!("Dummy")
     }

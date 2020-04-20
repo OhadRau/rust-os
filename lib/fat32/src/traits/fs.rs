@@ -55,6 +55,14 @@ pub trait Entry: Sized {
     /// directory. Otherwise returns `None`.
     fn as_dir(&self) -> Option<&Self::Dir>;
 
+    /// If `self` is a file, returns `Some` of a reference to the file.
+    /// Otherwise returns `None`.
+    fn as_file_mut(&mut self) -> Option<&mut Self::File>;
+
+    /// If `self` is a directory, returns `Some` of a reference to the
+    /// directory. Otherwise returns `None`.
+    fn as_dir_mut(&mut self) -> Option<&mut Self::Dir>;
+
     /// If `self` is a file, returns `Some` of the file. Otherwise returns
     /// `None`.
     fn into_file(self) -> Option<Self::File>;

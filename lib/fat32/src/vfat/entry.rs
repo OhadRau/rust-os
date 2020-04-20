@@ -40,12 +40,30 @@ impl<HANDLE: VFatHandle> traits::Entry for Entry<HANDLE> {
         }
     }
 
+    /// If `self` is a file, returns `Some` of a reference to the file.
+    /// Otherwise returns `None`.
+    fn as_file_mut(&mut self) -> Option<&mut file::File<HANDLE>> {
+        match self {
+            Entry::File(file) => Some(file),
+            Entry::Dir(_) => None,
+        }
+    }
+
     /// If `self` is a directory, returns `Some` of a reference to the
     /// directory. Otherwise returns `None`.
     fn as_dir(&self) -> Option<&dir::Dir<HANDLE>> {
         match self {
             Entry::File(_) => None,
             Entry::Dir(dir) => Some(&dir),
+        }
+    }
+
+    /// If `self` is a directory, returns `Some` of a reference to the
+    /// directory. Otherwise returns `None`.
+    fn as_dir_mut(&mut self) -> Option<&mut dir::Dir<HANDLE>> {
+        match self {
+            Entry::File(_) => None,
+            Entry::Dir(dir) => Some(dir),
         }
     }
 
