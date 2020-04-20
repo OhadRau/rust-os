@@ -1,11 +1,13 @@
 use alloc::boxed::Box;
 use alloc::string::String;
+use shim::path::PathBuf;
 
 use crate::console::CONSOLE;
 use crate::process::State;
 use crate::traps::TrapFrame;
 use crate::SCHEDULER;
 use kernel_api::*;
+use crate::fs::fd::Fd;
 
 /// Kills current process.
 ///
@@ -211,6 +213,62 @@ pub fn sys_env_set(var_ptr: *const u8, var_len: usize, val_ptr: *const u8, val_l
     }
 }
 
+fn parse_path(path_ptr: *const u8, path_len: usize) -> Option<PathBuf> {
+    use shim::path::Component;
+    fn canonicalize(path: PathBuf) -> Option<PathBuf> {
+        let mut new_path = PathBuf::new();
+        for comp in path.components() {
+            match comp {
+                Component::ParentDir => {
+                    let res = new_path.pop();
+                    if !res {
+                        return None;
+                    }
+                },
+                Component::Normal(n) => new_path = new_path.join(n),
+                Component::RootDir => new_path = ["/"].iter().collect(),
+                _ => ()
+            };
+        }
+        Some(new_path)
+    }
+
+    let path_slice = unsafe { core::slice::from_raw_parts(path_ptr, path_len) };
+    let path_string = core::str::from_utf8(path_slice).ok()?;
+    let raw_path = PathBuf::from(path_string);
+    if !raw_path.is_absolute() { return None }
+    canonicalize(raw_path)
+}
+
+pub fn sys_fs_open(path_ptr: *const u8, path_len: usize, tf: &mut TrapFrame) {
+    let path = match parse_path(path_ptr, path_len) {
+        Some(path) => path,
+        None => {
+            tf.xs[7] = 70; // Invalid argument
+            return
+        },
+    };
+
+    SCHEDULER.with_running(|process: &mut crate::process::Process| {
+        match process.fd_table.open(path) {
+            Ok(fd) => {
+                tf.xs[0] = fd.as_u64();
+                tf.xs[7] = 1; // Success
+            },
+            Err(_) => tf.xs[7] = 0, // Unknown error
+        }
+    });
+}
+
+pub fn sys_fs_close(fd: Fd, tf: &mut TrapFrame) {
+    SCHEDULER.with_running(|process: &mut crate::process::Process| {
+        match process.fd_table.close(&fd) {
+            Ok(_) => tf.xs[7] = 1, // Success
+            Err(_) => tf.xs[7] = 0, // Unknown error
+        }
+    });
+}
+
 pub fn handle_syscall(num: u16, tf: &mut TrapFrame) {
     match num as usize {
         SYS_EXIT => sys_exit(tf),
@@ -225,6 +283,9 @@ pub fn handle_syscall(num: u16, tf: &mut TrapFrame) {
         SYS_OUTPUT => sys_output(tf.xs[0] as u8, tf),
         SYS_ENV_GET => sys_env_get(tf.xs[0] as *const u8, tf.xs[1] as usize, tf.xs[2] as *mut u8, tf.xs[3] as usize, tf),
         SYS_ENV_SET => sys_env_set(tf.xs[0] as *const u8, tf.xs[1] as usize, tf.xs[2] as *const u8, tf.xs[3] as usize, tf),
+
+        SYS_FS_OPEN => sys_fs_open(tf.xs[0] as *const u8, tf.xs[1] as usize, tf),
+        SYS_FS_CLOSE => sys_fs_close(Fd::from(tf.xs[0]), tf),
 
         _ => {
             tf.xs[7] = OsError::Unknown as u64;

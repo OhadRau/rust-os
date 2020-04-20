@@ -75,6 +75,19 @@ pub fn env_set(var: &str, val: &str) -> OsResult<()> {
     unsafe { do_syscall0r!(SYS_ENV_SET, var_ptr, var_len, val_ptr, val_len) }
 }
 
+pub fn fs_open(path: &str) -> OsResult<Fd> {
+    let path_ptr = &path.as_bytes()[0] as *const u8 as u64;
+    let path_len = path.len() as u64;
+
+    unsafe {
+        do_syscall1r!(SYS_FS_OPEN, path_ptr, path_len).map(Fd::from)
+    }
+}
+
+pub fn fs_close(fd: &Fd) -> OsResult<()> {
+    unsafe { do_syscall0r!(SYS_FS_CLOSE, fd.as_u64()) }
+}
+
 struct Console;
 
 impl fmt::Write for Console {

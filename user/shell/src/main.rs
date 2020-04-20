@@ -5,7 +5,7 @@
 mod cr0;
 
 use kernel_api::{print, println};
-use kernel_api::syscall::{input, output, env_get, env_set, fork, exec, wait_pid, exit};
+use kernel_api::syscall::{input, output, env_get, env_set, fork, fs_open, fs_close, exec, wait_pid, exit};
 
 fn parse_command<'a>(buffer: &'a [u8], args_buf: &'a mut [&'a str]) -> Option<&'a [&'a str]> {
     let mut start = 0;
@@ -44,6 +44,31 @@ fn main(_args: &[&str]) {
         Ok(len) => println!("$CWD: {:?}", &cwd_string[0..len]),
         Err(e)  => println!("Couldn't read $CWD: {:?}", e),
     };
+
+    match fs_open("/fib") {
+        Ok(fd) => println!("/fib: {:?}", fd),
+        Err(e) => println!("Couldn't open /fib: {:?}", e),
+    }
+
+    match fs_open("/fib") {
+        Ok(fd) => println!("/fib: {:?}", fd),
+        Err(e) => println!("Couldn't open /fib: {:?}", e),
+    }
+
+    match fs_open("/echo") {
+        Ok(fd) => { println!("/echo: {:?}", fd); fs_close(&fd); },
+        Err(e) => println!("Couldn't open /echo: {:?}", e),
+    }
+
+    match fs_open("/echo") {
+        Ok(fd) => println!("/echo: {:?}", fd),
+        Err(e) => println!("Couldn't open /echo: {:?}", e),
+    }
+
+    match fs_open("/foo") {
+        Ok(fd) => println!("/foo: {:?}", fd),
+        Err(e) => println!("Couldn't open /foo: {:?}", e),
+    }
 
     loop {
         print!("sh> ");
