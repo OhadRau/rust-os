@@ -4,7 +4,6 @@ use crate::traits;
 use crate::vfat::{Cluster, Dir, Metadata, VFat, VFatHandle, Pos, Range};
 use crate::vfat::dir::VFatRegularDirEntry;
 use core::mem;
-    
 
 #[derive(Debug)]
 pub struct File<HANDLE: VFatHandle> {

@@ -1,6 +1,6 @@
 use hashbrown::HashMap;
 use fat32::vfat::VFat;
-use fat32::traits::{FileSystem};
+use fat32::traits::FileSystem;
 use blockdev::block_device::BlockDevice;
 use blockdev::mount::*;
 use alloc::boxed::Box;
