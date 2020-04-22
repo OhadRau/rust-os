@@ -7,7 +7,7 @@ pub use self::frame::TrapFrame;
 
 use pi::interrupt::{Controller, Interrupt};
 
-use self::syndrome::Syndrome;
+use self::syndrome::{Syndrome, Fault};
 use self::syscall::handle_syscall;
 
 #[repr(u16)]
@@ -48,6 +48,7 @@ pub extern "C" fn handle_exception(info: Info, esr: u32, tf: &mut TrapFrame) {
     
     if info.kind == Kind::Synchronous {
         let syndrome = Syndrome::from(esr);
+        let addr = unsafe { aarch64::FAR_EL1.get() } as usize;
 //        kprintln!("Detected syndrome {:?}", syndrome);
         match syndrome {
             Syndrome::Brk(_) => {
@@ -55,6 +56,10 @@ pub extern "C" fn handle_exception(info: Info, esr: u32, tf: &mut TrapFrame) {
                 crate::shell::shell(" [brk]>")
             },
             Syndrome::Svc(num) => handle_syscall(num, tf),
+            Syndrome::DataAbort { kind: Fault::Translation, level: 3 } =>
+                { crate::SCHEDULER.with_running(move |p| p.page_fault(addr)); },
+            Syndrome::InstructionAbort { kind: Fault::Translation, level: 3 } =>
+                { crate::SCHEDULER.with_running(move |p| p.page_fault(addr)); },
             _ => (),
         }
     } else if info.kind == Kind::Irq {

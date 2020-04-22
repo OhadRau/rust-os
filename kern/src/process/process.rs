@@ -239,6 +239,13 @@ impl Process {
         self.context.xs[1] = buffer_start_addr as u64;
     }
 
+    pub fn page_fault(&mut self, addr: usize) {
+        let page_addr = addr % PAGE_SIZE;
+        if page_addr >= USER_STACK_START {
+            self.vmap.alloc(VirtualAddr::from(addr), PagePerm::RW);
+        }
+    }
+
     /// Returns the highest `VirtualAddr` that is supported by this system.
     pub fn get_max_va() -> VirtualAddr {
         VirtualAddr::from(USER_IMG_BASE + USER_MAX_VM_SIZE)
