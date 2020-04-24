@@ -3,6 +3,7 @@
 #![no_main]
 
 mod cr0;
+mod alloc;
 
 use kernel_api::{print, println, EntryKind};
 use kernel_api::syscall::{input, output, env_get, env_set, fork, fs_create, fs_open, fs_close, fs_delete, exec, wait_pid, exit};

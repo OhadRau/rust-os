@@ -28,6 +28,8 @@ pub unsafe extern "C" fn _start(argc: usize, argv: *const (usize, *const u8)) ->
 
     zeros_bss();
 
+    crate::alloc::ALLOCATOR.initialize();
+
     if argc > ARG_MAX { panic!("Exceeded max number of args {}", ARG_MAX) };
     let mut args = [""; ARG_MAX];
 
