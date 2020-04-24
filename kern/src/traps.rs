@@ -57,9 +57,9 @@ pub extern "C" fn handle_exception(info: Info, esr: u32, tf: &mut TrapFrame) {
             },
             Syndrome::Svc(num) => handle_syscall(num, tf),
             Syndrome::DataAbort { kind: Fault::Translation, level: 3 } =>
-                { crate::SCHEDULER.with_running(move |p| p.page_fault(addr)); },
+                { crate::SCHEDULER.with_running(move |p| p.page_fault(addr, tf)); },
             Syndrome::InstructionAbort { kind: Fault::Translation, level: 3 } =>
-                { crate::SCHEDULER.with_running(move |p| p.page_fault(addr)); },
+                { crate::SCHEDULER.with_running(move |p| p.page_fault(addr, tf)); },
             _ => (),
         }
     } else if info.kind == Kind::Irq {
