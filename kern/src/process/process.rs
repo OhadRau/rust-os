@@ -33,6 +33,8 @@ pub struct Process {
     pub fd_table: LocalFdTable,
     /// Environment variables
     pub env: HashMap<String, String>,
+    /// Last allocated page (other than the stack)
+    pub last_page: VirtualAddr,
 }
 
 impl Process {
@@ -51,6 +53,7 @@ impl Process {
             dead: Arc::new(AtomicBool::new(false)),
             fd_table: LocalFdTable::new(),
             env: HashMap::new(),
+            last_page: VirtualAddr::from(0),
         })
     }
 
@@ -62,6 +65,7 @@ impl Process {
             dead: Arc::new(AtomicBool::new(false)),
             fd_table: self.fd_table.clone(),
             env: self.env.clone(),
+            last_page: self.last_page.clone(),
         }
     }
 
@@ -121,6 +125,7 @@ impl Process {
         for i in 0..num_pages {
             let base = VirtualAddr::from(USER_IMG_BASE + i * PAGE_SIZE);
             let page = process.vmap.alloc(base, PagePerm::RWX);
+            process.last_page = base;
             let num_bytes = min(PAGE_SIZE, file_size - i * PAGE_SIZE);
             page[0..num_bytes].copy_from_slice(&buffer[0..num_bytes]);
         }
@@ -157,6 +162,7 @@ impl Process {
         for i in 0..num_pages {
             let base = VirtualAddr::from(USER_IMG_BASE + i * PAGE_SIZE);
             let page = self.vmap.try_alloc(base, PagePerm::RWX);
+            self.last_page = base;
             let num_bytes = min(PAGE_SIZE, file_size - i * PAGE_SIZE);
             page[0..num_bytes].copy_from_slice(&buffer[0..num_bytes]);
         }

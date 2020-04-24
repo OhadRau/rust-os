@@ -113,6 +113,22 @@ pub fn sys_wait_pid(pid: u64, tf: &mut TrapFrame) {
     }
 }
 
+pub fn sys_request_page(num_pages: u64, tf: &mut TrapFrame) {
+    use crate::param::PAGE_SIZE;
+    use crate::vm::{PagePerm, VirtualAddr};
+
+    SCHEDULER.with_running(|process| {
+        // Return the PREVIOUS program break
+        tf.xs[0] = process.last_page.as_u64() + (PAGE_SIZE as u64);
+        for _ in 0..num_pages {
+            let base_addr = process.last_page + VirtualAddr::from(PAGE_SIZE);
+            process.vmap.alloc(VirtualAddr::from(base_addr), PagePerm::RWX);
+            process.last_page = base_addr;
+        }
+        tf.xs[7] = 1; // Success
+    });
+}
+
 /// Returns current time.
 ///
 /// This system call does not take parameter.
@@ -369,6 +385,7 @@ pub fn handle_syscall(num: u16, tf: &mut TrapFrame) {
         SYS_FORK => sys_fork(tf),
         SYS_EXEC => sys_exec(tf.xs[0] as *const u8, tf.xs[1] as usize, tf.xs[2] as *const &str, tf.xs[3] as usize, tf),
         SYS_WAIT_PID => sys_wait_pid(tf.xs[0], tf),
+        SYS_REQUEST_PAGE => sys_request_page(tf.xs[0], tf),
 
         SYS_TIME => sys_time(tf),
         SYS_INPUT => sys_input(tf),

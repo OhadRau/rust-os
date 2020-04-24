@@ -41,6 +41,10 @@ pub fn wait_pid(pid: u64) -> OsResult<()> {
     unsafe { do_syscall0r!(SYS_WAIT_PID, pid) }
 }
 
+pub fn request_page(pages: u64) -> OsResult<usize> {
+    unsafe { do_syscall1r!(SYS_REQUEST_PAGE, pages).map(|x| x as usize) }
+}
+
 pub fn time() -> Duration {
     let (secs, nanos) = unsafe { do_syscall2!(SYS_TIME) };
     Duration::new(secs, nanos as u32)
