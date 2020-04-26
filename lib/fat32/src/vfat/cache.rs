@@ -61,8 +61,8 @@ impl CachedPartition {
     }
 
     pub fn flush(&mut self) {
-        #[cfg(debug_assertions)]
-        println!("FLUSHING TO DISK");
+        //#[cfg(debug_assertions)]
+        //println!("FLUSHING TO DISK");
         let dirty_sectors: Vec<u64> = self.cache.keys().filter(|sector| 
             // should be safe to unwrap here because we are iterating over the keys
             self.cache.get(&sector).unwrap().dirty
@@ -115,8 +115,8 @@ impl CachedPartition {
     }
 
     fn write_to_disk(&mut self, sector: u64) -> io::Result<()> {
-        #[cfg(debug_assertions)]
-        println!("WRITING TO DISK @ SECTOR {}", sector);
+        //#[cfg(debug_assertions)]
+        //println!("WRITING TO DISK @ SECTOR {}", sector);
         if self.cache.contains_key(&sector) {
             let phys = match self.virtual_to_physical(sector) {
                 Some(phys) => phys,
@@ -146,8 +146,8 @@ impl CachedPartition {
         self.read_to_cache(sector)?;
         let mut entry = self.cache.get_mut(&sector).unwrap();
         entry.dirty = true;
-        #[cfg(debug_assertions)]
-        println!("Sector {} is dirty", sector);
+        //#[cfg(debug_assertions)]
+        //println!("Sector {} is dirty", sector);
         Ok(&mut entry.data)
     }
 

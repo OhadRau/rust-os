@@ -190,8 +190,8 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
 
         let start_sector = self.cluster_start_sector(cluster);
 
-        #[cfg(debug_assertions)]
-        println!("Cluster {:?}/offset {} => start_sector {}", cluster, offset, start_sector);
+        //#[cfg(debug_assertions)]
+        //println!("Cluster {:?}/offset {} => start_sector {}", cluster, offset, start_sector);
 
         let bytes_per_sector = self.bytes_per_sector as usize;
         let sector_num = offset / bytes_per_sector;
@@ -199,8 +199,8 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
         let bytes_per_cluster = bytes_per_sector * self.sectors_per_cluster as usize;
         let write_size = min(buf.len(), bytes_per_cluster - offset);
 
-        #[cfg(debug_assertions)]
-        println!("Write size: {}", write_size);
+        //#[cfg(debug_assertions)]
+        //println!("Write size: {}", write_size);
 
         let mut bytes_written = 0;
         let mut sector = start_sector + sector_num as u64;
@@ -210,8 +210,8 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
             if bytes_written == 0 {
                 let to_write = min(buf.len(), bytes[sector_off..].len());
 
-                #[cfg(debug_assertions)]
-                println!("to_write: {} | range: {}..{}", to_write, sector_off, sector_off + to_write);
+                //#[cfg(debug_assertions)]
+                //println!("to_write: {} | range: {}..{}", to_write, sector_off, sector_off + to_write);
 
                 bytes[sector_off..sector_off + to_write].copy_from_slice(&buf[..to_write]);
                 bytes_written += to_write;
@@ -343,10 +343,10 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
                            buf: &[u8]) -> io::Result<usize> {
         let mut bytes_written = 0;
 
-        #[cfg(debug_assertions)]
-        println!("WRITING FROM {:?}", pos);
-        #[cfg(debug_assertions)]
-        println!("Buffer length: {}", buf.len());
+        //#[cfg(debug_assertions)]
+        //println!("WRITING FROM {:?}", pos);
+        //#[cfg(debug_assertions)]
+        //println!("Buffer length: {}", buf.len());
 
         loop {
             if bytes_written >= buf.len() {
@@ -355,8 +355,8 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
 
             let num_written = self.write_cluster(pos.cluster, pos.offset, &buf[bytes_written..])?;
 
-            #[cfg(debug_assertions)]
-            println!("Just wrote {} bytes to {:?}", num_written, pos);
+            //#[cfg(debug_assertions)]
+            //println!("Just wrote {} bytes to {:?}", num_written, pos);
 
             bytes_written += num_written;
             match self.fat_entry(pos.cluster)?.status() {
