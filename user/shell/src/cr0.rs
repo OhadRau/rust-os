@@ -3,7 +3,8 @@ use core::panic::PanicInfo;
 use core::ptr::write_volatile;
 
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
+fn panic(info: &PanicInfo) -> ! {
+    kernel_api::println!("PANICKED: {:?}", info);
     loop {}
 }
 
@@ -28,7 +29,7 @@ pub unsafe extern "C" fn _start(argc: usize, argv: *const (usize, *const u8)) ->
 
     zeros_bss();
 
-    crate::alloc::ALLOCATOR.initialize();
+    crate::ALLOCATOR.initialize();
 
     if argc > ARG_MAX { panic!("Exceeded max number of args {}", ARG_MAX) };
     let mut args = [""; ARG_MAX];

@@ -36,9 +36,9 @@ fn main(args: &[&str]) {
     }
 
 
-    println!("Executing /echo nut guy");
+    println!("Executing /bin/echo nut guy");
     let args = ["nut", "guy"];
-    exec("/echo", &args);
+    exec("/bin/echo", &args);
 
     exit()
 }

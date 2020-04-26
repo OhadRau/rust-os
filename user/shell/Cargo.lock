@@ -43,6 +43,7 @@ version = "0.1.0"
 dependencies = [
  "aarch64 0.1.0",
  "kernel_api 0.1.0",
+ "shim 0.1.0",
 ]
 
 [[package]]

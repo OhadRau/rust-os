@@ -12,3 +12,4 @@ memcpy = true
 [dependencies]
 aarch64 = { path = "../../lib/aarch64/" }
 kernel_api = { path = "../../lib/kernel_api" }
+shim = { path = "../../lib/shim", features = ["no_std", "alloc"] }

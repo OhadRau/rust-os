@@ -1,31 +1,41 @@
 #![feature(asm)]
+#![feature(alloc_error_handler)]
+#![feature(optin_builtin_traits)]
 #![no_std]
 #![no_main]
 
 mod cr0;
-mod alloc;
+mod allocator;
+
+#[macro_use]
+extern crate alloc;
+use alloc::vec::Vec;
+use alloc::string::String;
 
 use kernel_api::{print, println, EntryKind};
 use kernel_api::syscall::{input, output, env_get, env_set, fork, fs_create, fs_open, fs_close, fs_delete, exec, wait_pid, exit};
 
-fn parse_command<'a>(buffer: &'a [u8], args_buf: &'a mut [&'a str]) -> Option<&'a [&'a str]> {
+#[global_allocator]
+pub static ALLOCATOR: allocator::Allocator = allocator::Allocator::uninitialized();
+
+fn parse_command<'a>(buffer: &'a [u8]) -> Option<Vec<String>> {
     let mut start = 0;
-    let mut arg = 0;
+
+    let mut args = Vec::new();
+
     for i in 0..buffer.len() {
         if buffer[i] == ' ' as u8 || i == buffer.len() - 1 {
             let part = core::str::from_utf8(&buffer[start..i]).ok()?;
-            args_buf[arg] = part;
-            arg += 1;
+            args.push(String::from(part));
             start = i + 1;
         }
     }
-    Some(&args_buf[0..arg])
+    Some(args)
 }
 
 fn run_program(program: &str, args: &[&str]) {
     if program == "exit" { exit() }
 
-    let mut full_buf = [0u8; 128];
     let program = if program.chars().nth(0) != Some('/') {
         let mut path_buf = [0u8; 128];
         let path_string = unsafe { core::str::from_utf8_unchecked_mut(&mut path_buf) };
@@ -37,18 +47,11 @@ fn run_program(program: &str, args: &[&str]) {
             },
         };
 
-        let full_length = path.len() + program.len();
-        if full_length > full_buf.len() {
-            println!("Path name is too long: {}{}", path, program);
-            return
-        }
-        full_buf[0..path.len()].copy_from_slice(&path.as_bytes());
-        full_buf[path.len()..full_length].copy_from_slice(&program.as_bytes());
-        core::str::from_utf8(&full_buf[0..full_length]).expect("Couldn't concat strings")
-    } else { program };
+        format!("{}{}", path, program)
+    } else { String::from(program) };
 
     match fork() {
-        Ok(0) => match exec(program, args) {
+        Ok(0) => match exec(program.as_str(), args) {
             Ok(()) => (),
             Err(e) => println!("Encountered error: {:?}", e),
         },
@@ -63,6 +66,7 @@ fn run_program(program: &str, args: &[&str]) {
 fn main(_args: &[&str]) {
     let _ = env_set("PATH", "/bin/").expect("Couldn't set $PATH");
     let _ = env_set("CWD", "/").expect("Couldn't set $CWD");
+
     let mut cwd_buf = [0u8; 128];
     let cwd_string = unsafe { core::str::from_utf8_unchecked_mut(&mut cwd_buf) };
     match env_get("CWD", cwd_string) {
@@ -115,7 +119,6 @@ fn main(_args: &[&str]) {
 
         let mut text_idx = 0;
         let mut text_buf = [0u8; 512];
-        let mut args_buf = [""; 64];
 
         loop {
             if text_idx >= 512 { continue; }
@@ -130,9 +133,10 @@ fn main(_args: &[&str]) {
         println!("");
 
         let command_text = &text_buf[0..text_idx];
-        match parse_command(command_text, &mut args_buf) {
+        match parse_command(command_text) {
             Some(args) => {
                 if args.len() == 0 { continue }
+                let args = args.iter().map(|x| x.as_str()).collect::<Vec<_>>();
                 let program = &args[0];
                 let args = &args[1..];
                 run_program(program, args);
