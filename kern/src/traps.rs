@@ -41,15 +41,19 @@ pub struct Info {
 /// the trap frame for the exception.
 #[no_mangle]
 pub extern "C" fn handle_exception(info: Info, esr: u32, tf: &mut TrapFrame) {
-//    use crate::console::kprintln;
+    //use crate::console::kprintln;
 
-//    kprintln!("Handling exception! Source: {:?}, kind: {:?}, tf: {:?}, esr: {}",
-//              info.source, info.kind, tf, esr);
-    
+    //kprintln!("Handling exception! Source: {:?}, kind: {:?}, tf: {:?}, esr: {}",
+    //          info.source, info.kind, tf, esr);
     if info.kind == Kind::Synchronous {
         let syndrome = Syndrome::from(esr);
         let addr = unsafe { aarch64::FAR_EL1.get() } as usize;
-//        kprintln!("Detected syndrome {:?}", syndrome);
+        //kprintln!("Detected syndrome {:?} ({:b}, FAR = {:x})", syndrome, esr, addr);
+        //kprintln!("Stack pointer: {:x}; Instruction addr: {:x}", tf.sp, tf.elr);
+        //kprintln!("ttbr0: {:x}, ttbr1: {:x}", tf.ttbr0, tf.ttbr1);
+        //let mut sp = 0;
+        //unsafe { asm!("mov $0, sp" : "=r"(sp) ::::) }
+        //kprintln!("SP: {:x}", sp);
         match syndrome {
             Syndrome::Brk(_) => {
                 tf.elr += 4; // Go to next instruction
@@ -57,9 +61,17 @@ pub extern "C" fn handle_exception(info: Info, esr: u32, tf: &mut TrapFrame) {
             },
             Syndrome::Svc(num) => handle_syscall(num, tf),
             Syndrome::DataAbort { kind: Fault::Translation, level: 3 } =>
-                { crate::SCHEDULER.with_running(move |p| p.page_fault(addr, tf)); },
+                {
+                    if !crate::SCHEDULER.with_running(move |p| p.page_fault(addr)).unwrap() {
+                        crate::SCHEDULER.kill(tf);
+                    }
+                },
             Syndrome::InstructionAbort { kind: Fault::Translation, level: 3 } =>
-                { crate::SCHEDULER.with_running(move |p| p.page_fault(addr, tf)); },
+                {
+                    if !crate::SCHEDULER.with_running(move |p| p.page_fault(addr)).unwrap() {
+                        crate::SCHEDULER.kill(tf);
+                    }
+                },
             _ => (),
         }
     } else if info.kind == Kind::Irq {
