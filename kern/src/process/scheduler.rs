@@ -103,20 +103,21 @@ impl GlobalScheduler {
             asm!("
                 // Call context_restore w/ SP reset to trap frame
                 mov sp, $0
+                mov $0, xzr
                 bl context_restore
-                mov lr, xzr
+                " :: "r"(tf) :: "volatile");
 
+            let new_sp = crate::allocator::util::align_down(
+                0x80000 as usize, crate::param::PAGE_SIZE);
+
+            asm!("
                 // Move SP to next page w/out clobbering other registers
-                adr x0, _start_next_page
-                mov sp, x0
-                mov x0, xzr
+                mov sp, $0
+                mov $0, xzr
 
                 // Switch to EL0
                 eret
-
-_start_next_page:
-                .balign 0x10000
-            " :: "r"(tf) :: "volatile")
+            " :: "r"(new_sp) :: "volatile")
         }
 
         loop {}
