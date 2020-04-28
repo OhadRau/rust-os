@@ -59,14 +59,13 @@ pub fn output(b: u8) {
 }
 
 // Returns amount read
-pub fn env_get(var: &str, val: &mut str) -> OsResult<usize> {
+pub fn env_get(var: &str, val: &mut [u8]) -> OsResult<usize> {
     let var_len = var.len() as u64;
     let var_ptr = &var.as_bytes()[0] as *const u8 as u64;
 
     let val_len = val.len() as u64;
-    let val_ptr = unsafe { &mut val.as_bytes_mut()[0] as *mut u8 as u64 };
 
-    unsafe { do_syscall1r!(SYS_ENV_GET, var_ptr, var_len, val_ptr, val_len).map(|x| x as usize) }
+    unsafe { do_syscall1r!(SYS_ENV_GET, var_ptr, var_len, val.as_ptr() as u64, val.len() as u64).map(|x| x as usize) }
 }
 
 pub fn env_set(var: &str, val: &str) -> OsResult<()> {

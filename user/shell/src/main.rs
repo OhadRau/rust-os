@@ -38,9 +38,8 @@ fn run_program(program: &str, args: &[&str]) {
 
     let program = if program.chars().nth(0) != Some('/') {
         let mut path_buf = [0u8; 128];
-        let path_string = unsafe { core::str::from_utf8_unchecked_mut(&mut path_buf) };
-        let path = match env_get("PATH", path_string) {
-            Ok(len) => &path_string[0..len],
+        let path = match env_get("PATH", &mut path_buf) {
+            Ok(len) => core::str::from_utf8(&path_buf[0..len]).expect("Couldn't parse as UTF-8"),
             Err(_)  => {
                 println!("Path is relative, but $PATH doesn't exist");
                 return
@@ -68,9 +67,11 @@ fn main(_args: &[&str]) {
     let _ = env_set("CWD", "/").expect("Couldn't set $CWD");
 
     let mut cwd_buf = [0u8; 128];
-    let cwd_string = unsafe { core::str::from_utf8_unchecked_mut(&mut cwd_buf) };
-    match env_get("CWD", cwd_string) {
-        Ok(len) => println!("$CWD: {:?}", &cwd_string[0..len]),
+    match env_get("CWD", &mut cwd_buf) {
+        Ok(len) => {
+            let cwd_string = core::str::from_utf8(&cwd_buf[0..len]).expect("Couldn't parse as UTF-8");
+            println!("$CWD: {:?}", cwd_string)
+        },
         Err(e)  => println!("Couldn't read $CWD: {:?}", e),
     };
 

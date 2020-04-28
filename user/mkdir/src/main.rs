@@ -9,9 +9,8 @@ use kernel_api::syscall::{env_get, fs_create};
 
 fn main(args: &[&str]) {
     let mut cwd_buf = [0u8; 128];
-    let cwd_string = unsafe { core::str::from_utf8_unchecked_mut(&mut cwd_buf) };
-    let cwd = match env_get("CWD", cwd_string) {
-        Ok(len) => &cwd_string[0..len],
+    let cwd = match env_get("CWD", &mut cwd_buf) {
+        Ok(len) => core::str::from_utf8(&cwd_buf[0..len]).expect("Couldn't parse as UTF-8"),
         Err(e)  => {
             println!("Couldn't read $CWD: {:?}", e);
             return
