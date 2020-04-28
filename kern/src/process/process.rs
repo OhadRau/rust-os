@@ -194,7 +194,7 @@ impl Process {
         use kernel_api::ARG_MAX;
         use alloc::vec;
         use fat32::util::SliceExt;
-        use crate::allocator::util::{align_up, align_down};
+        use liballoc::util::{align_up, align_down};
 
         let fat_pointer_size = core::mem::size_of::<(usize, *const u8)>();
         let buffer_array_size = fat_pointer_size * args.len();

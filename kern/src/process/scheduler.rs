@@ -107,9 +107,7 @@ impl GlobalScheduler {
                 bl context_restore
                 " :: "r"(tf) :: "volatile");
 
-            //let new_sp = crate::allocator::util::align_down(
-            //    0x80000 as usize, crate::param::PAGE_SIZE);
-            let new_sp = 0x80000;
+            let new_sp = 0x80000; // not ideal to hardcode this, oh well
 
             asm!("
                 // Move SP to next page w/out clobbering other registers
@@ -139,25 +137,6 @@ impl GlobalScheduler {
         let a = Process::load("/bin/shell").expect("couldn't load shell");
         self.add(a).expect("Couldn't get PID");
     }
-
-    // The following method may be useful for testing Phase 3:
-    //
-    // * A method to load a extern function to the user process's page table.
-    //
-    /*
-    pub fn test_phase_3(&self, proc: &mut Process){
-        use crate::vm::{VirtualAddr, PagePerm};
-
-        let mut page = proc.vmap.alloc(
-            VirtualAddr::from(USER_IMG_BASE as u64), PagePerm::RWX);
-    
-        let text = unsafe {
-            core::slice::from_raw_parts(test_user_process as *const u8, 24)
-        };
-    
-        page[0..24].copy_from_slice(text);
-    }
-    */
 }
 
 #[derive(Debug)]
@@ -281,24 +260,3 @@ impl Scheduler {
         }
     }
 }
-
-/*
-pub extern "C" fn  test_user_process() -> ! {
-    loop {
-        let ms = 10000;
-        let error: u64;
-        let elapsed_ms: u64;
-
-        unsafe {
-            asm!("mov x0, $2
-              svc 1
-              mov $0, x0
-              mov $1, x7"
-                 : "=r"(elapsed_ms), "=r"(error)
-                 : "r"(ms)
-                 : "x0", "x7"
-                 : "volatile");
-        }
-    }
-}
-*/
