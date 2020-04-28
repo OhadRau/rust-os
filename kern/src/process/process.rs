@@ -58,9 +58,12 @@ impl Process {
     }
 
     pub fn fork(&self, tf: &TrapFrame) -> Process {
+        let mut new_ctx = Box::new(tf.clone());
+        let new_vmap = Box::new(self.vmap.duplicate());
+        new_ctx.ttbr1 = new_vmap.get_baddr().as_u64();
         Process {
-            context: Box::new(tf.clone()),
-            vmap: Box::new(self.vmap.duplicate()),
+            context: new_ctx,
+            vmap: new_vmap,
             state: State::Ready,
             dead: Arc::new(AtomicBool::new(false)),
             fd_table: self.fd_table.clone(),

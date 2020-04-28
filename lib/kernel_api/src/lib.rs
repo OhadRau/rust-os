@@ -161,8 +161,9 @@ pub const SYS_FS_CLOSE: usize = 22;
 pub const SYS_FS_DELETE: usize = 23;
 pub const SYS_FS_METADATA: usize = 24;
 pub const SYS_FS_FLUSH: usize = 25;
-pub const SYS_FS_MOUNT: usize = 26;
-pub const SYS_FS_UNMOUNT: usize = 27;
+pub const SYS_FS_LSBLK: usize = 26;
+pub const SYS_FS_MOUNT: usize = 27;
+pub const SYS_FS_UNMOUNT: usize = 28;
 
 // File-specific syscalls
 pub const SYS_FILE_SEEK: usize = 30;

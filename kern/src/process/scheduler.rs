@@ -107,8 +107,9 @@ impl GlobalScheduler {
                 bl context_restore
                 " :: "r"(tf) :: "volatile");
 
-            let new_sp = crate::allocator::util::align_down(
-                0x80000 as usize, crate::param::PAGE_SIZE);
+            //let new_sp = crate::allocator::util::align_down(
+            //    0x80000 as usize, crate::param::PAGE_SIZE);
+            let new_sp = 0x80000;
 
             asm!("
                 // Move SP to next page w/out clobbering other registers

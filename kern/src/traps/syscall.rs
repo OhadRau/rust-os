@@ -3,11 +3,13 @@ use alloc::string::String;
 use shim::path::PathBuf;
 
 use crate::console::CONSOLE;
+use crate::FILESYSTEM;
 use crate::process::State;
 use crate::traps::TrapFrame;
 use crate::SCHEDULER;
 use kernel_api::*;
 use crate::fs::fd::Fd;
+use blockdev::mount::MountOptions;
 
 /// Kills current process.
 ///
@@ -122,7 +124,7 @@ pub fn sys_request_page(num_pages: u64, tf: &mut TrapFrame) {
         tf.xs[0] = process.last_page.as_u64() + (PAGE_SIZE as u64);
         for _ in 0..num_pages {
             let base_addr = process.last_page + VirtualAddr::from(PAGE_SIZE);
-            process.vmap.alloc(VirtualAddr::from(base_addr), PagePerm::RWX);
+            process.vmap.try_alloc(VirtualAddr::from(base_addr), PagePerm::RWX);
             process.last_page = base_addr;
         }
         tf.xs[7] = 1; // Success
@@ -421,6 +423,39 @@ pub fn sys_file_read(fd: Fd, buf: *mut u8, buf_len: usize, tf: &mut TrapFrame) {
     }
 }
 
+pub fn sys_fs_lsblk() {
+    FILESYSTEM.lsblk();
+}
+
+pub fn sys_fs_mount(part_num: usize, path_ptr: *const u8, path_len: usize, opts_ptr: *mut MountOptions, tf: &mut TrapFrame) {
+    let path = match parse_path(path_ptr, path_len) {
+        Some(path) => path,
+        None => {
+            tf.xs[7] = 70; // Invalid argument
+            return
+        },
+    };
+
+
+    // lol make this safer idk
+    let opts = unsafe { (*opts_ptr).clone() };
+    FILESYSTEM.mount(part_num, path, opts);
+}
+
+pub fn sys_fs_unmount(path_ptr: *const u8, path_len: usize, tf: &mut TrapFrame) {
+    let path = match parse_path(path_ptr, path_len) {
+        Some(path) => path,
+        None => {
+            tf.xs[7] = 70; // Invalid argument
+            return
+        },
+    };
+    match FILESYSTEM.unmount(path) {
+        Err(_) => tf.xs[7] = OsError::IoError as u64,
+        Ok(_) => ()
+    }
+}
+
 pub fn handle_syscall(num: u16, tf: &mut TrapFrame) {
     match num as usize {
         SYS_EXIT => sys_exit(tf),
@@ -441,6 +476,9 @@ pub fn handle_syscall(num: u16, tf: &mut TrapFrame) {
         SYS_FS_OPEN => sys_fs_open(tf.xs[0] as *const u8, tf.xs[1] as usize, tf),
         SYS_FS_CLOSE => sys_fs_close(Fd::from(tf.xs[0]), tf),
         SYS_FS_DELETE => sys_fs_delete(tf.xs[0] as *const u8, tf.xs[1] as usize, tf),
+        SYS_FS_LSBLK => sys_fs_lsblk(),
+        SYS_FS_MOUNT => sys_fs_mount(tf.xs[0] as usize, tf.xs[1] as *const u8, tf.xs[2] as usize, tf.xs[3] as *mut MountOptions, tf),
+        SYS_FS_UNMOUNT => sys_fs_unmount(tf.xs[0] as *const u8, tf.xs[1] as usize, tf),
 
         SYS_FILE_SEEK => sys_file_seek(Fd::from(tf.xs[0]), tf.xs[1], tf.xs[2] as i64, tf),
         SYS_FILE_READ => sys_file_read(Fd::from(tf.xs[0]), tf.xs[1] as *mut u8, tf.xs[2] as usize, tf),
