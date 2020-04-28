@@ -3,7 +3,7 @@
 IMG=fs.img
 MNT=mnt
 
-PROGS=(sleep fib echo shell mkdir touch rm)
+PROGS=(sleep fib echo shell mkdir touch rm cat)
 
 for d in ${PROGS[@]}; do
     (cd $d; make build)
@@ -28,6 +28,7 @@ sudo mount $LOP1 $MNT
 trap "sudo umount $MNT; rmdir $MNT; sudo losetup -d $LO" EXIT
 
 sudo mkdir $MNT/bin/
+sudo cp ./build.sh $MNT/build.sh
 for d in ${PROGS[@]}; do
     sudo cp $d/build/$d.bin $MNT/bin/$d
 done
