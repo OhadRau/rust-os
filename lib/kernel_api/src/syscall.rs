@@ -105,6 +105,11 @@ pub fn fs_delete(path: &str) -> OsResult<()> {
     unsafe { do_syscall0r!(SYS_FS_DELETE, path_ptr, path_len) }
 }
 
+pub fn file_seek(fd: &Fd, sf: shim::io::SeekFrom) -> OsResult<u64> {
+    let (mode, offset) = seek_mode_to_raw(sf);
+    unsafe { do_syscall1r!(SYS_FILE_SEEK, fd.as_u64(), mode, offset as u64) }
+}
+
 struct Console;
 
 impl fmt::Write for Console {

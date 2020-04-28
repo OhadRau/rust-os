@@ -2,6 +2,7 @@
 #![no_std]
 
 use shim::io;
+use shim::io::SeekFrom;
 
 #[cfg(feature = "user-space")]
 pub mod syscall;
@@ -109,6 +110,30 @@ impl core::convert::From<u64> for EntryKind {
       1 => EntryKind::Dir,
       _ => panic!("Unknown EntryKind"),
     }
+  }
+}
+
+pub const SEEK_FROM_START: u64 = 0;
+pub const SEEK_FROM_CURRENT: u64 = 1;
+pub const SEEK_FROM_END: u64 = 2;
+
+pub fn seek_mode_to_raw(sf: SeekFrom) -> (u64, i64) {
+  match sf {
+    SeekFrom::Start(n) => (SEEK_FROM_START, n as i64),
+    SeekFrom::End(n) => (SEEK_FROM_END, n),
+    SeekFrom::Current(n) => (SEEK_FROM_CURRENT, n),
+  }
+}
+
+pub fn seek_mode_from_raw(mode: u64, offset: i64) -> SeekFrom {
+  if mode == SEEK_FROM_START {
+    SeekFrom::Start(offset as u64)
+  } else if mode == SEEK_FROM_END {
+    SeekFrom::End(offset)
+  } else if mode == SEEK_FROM_CURRENT {
+    SeekFrom::Current(offset)
+  } else {
+    panic!("Encountered invalid seek mode")
   }
 }
 

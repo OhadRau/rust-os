@@ -377,6 +377,28 @@ pub fn sys_fs_delete(path_ptr: *const u8, path_len: usize, tf: &mut TrapFrame) {
     }
 }
 
+pub fn sys_file_seek(fd: Fd, mode: u64, offset: i64, tf: &mut TrapFrame) {
+    use shim::{io, ioerr};
+    use io::Seek;
+    use fat32::traits::Entry;
+
+    let sf = seek_mode_from_raw(mode, offset);
+    let err = SCHEDULER.with_running(|process| {
+        process.fd_table.critical(&fd, move |entry| -> io::Result<u64> {
+            if entry.is_dir() { return ioerr!(InvalidInput, "Can't seek in a directory") }
+            entry.as_file_mut().expect("Unable to open file as file").seek(sf)
+        }).and_then(|x| x)
+    });
+
+    match err {
+        Some(Ok(n)) => {
+            tf.xs[0] = n;
+            tf.xs[7] = 1; // Success
+        },
+        _ => tf.xs[7] = 0, // Unknown
+    }
+}
+
 pub fn handle_syscall(num: u16, tf: &mut TrapFrame) {
     match num as usize {
         SYS_EXIT => sys_exit(tf),
@@ -397,6 +419,8 @@ pub fn handle_syscall(num: u16, tf: &mut TrapFrame) {
         SYS_FS_OPEN => sys_fs_open(tf.xs[0] as *const u8, tf.xs[1] as usize, tf),
         SYS_FS_CLOSE => sys_fs_close(Fd::from(tf.xs[0]), tf),
         SYS_FS_DELETE => sys_fs_delete(tf.xs[0] as *const u8, tf.xs[1] as usize, tf),
+
+        SYS_FILE_SEEK => sys_file_seek(Fd::from(tf.xs[0]), tf.xs[1], tf.xs[2] as i64, tf),
 
         _ => {
             tf.xs[7] = OsError::Unknown as u64;
