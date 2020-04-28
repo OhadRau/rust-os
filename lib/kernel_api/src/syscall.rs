@@ -110,6 +110,13 @@ pub fn file_seek(fd: &Fd, sf: shim::io::SeekFrom) -> OsResult<u64> {
     unsafe { do_syscall1r!(SYS_FILE_SEEK, fd.as_u64(), mode, offset as u64) }
 }
 
+pub fn file_read(fd: &Fd, buf: &mut [u8]) -> OsResult<usize> {
+    unsafe {
+        do_syscall1r!(SYS_FILE_READ, fd.as_u64(), buf.as_mut_ptr() as u64, buf.len() as u64)
+            .map(|x| x as usize)
+    }
+}
+
 struct Console;
 
 impl fmt::Write for Console {
