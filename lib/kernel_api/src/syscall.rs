@@ -1,9 +1,11 @@
 use core::fmt;
 use core::fmt::Write;
 use core::time::Duration;
+//use blockdev::mount::MountOptions;
+//extern crate alloc;
+//use alloc::boxed::Box;
 
 use crate::*;
-use crate::syscall_macros::*;
 
 pub fn exit() -> ! {
     unsafe { do_syscall0!(SYS_EXIT) }
@@ -115,6 +117,25 @@ pub fn file_read(fd: &Fd, buf: &mut [u8]) -> OsResult<usize> {
         do_syscall1r!(SYS_FILE_READ, fd.as_u64(), buf.as_mut_ptr() as u64, buf.len() as u64)
             .map(|x| x as usize)
     }
+pub fn mount(part_num: u64, path: &str, opts_ptr: u64) -> OsResult<()> {
+    let path_ptr = &path.as_bytes()[0] as *const u8 as u64;
+    let path_len = path.len() as u64;
+
+    unsafe { do_syscall0r!(SYS_FS_MOUNT, part_num, path_ptr, path_len, opts_ptr) }
+    //unsafe { do_syscall0r!(SYS_FS_MOUNT, part_num, path_ptr, path_len) }
+}
+
+pub fn unmount(path: &str) -> OsResult<()> {
+    let path_ptr = &path.as_bytes()[0] as *const u8 as u64;
+    let path_len = path.len() as u64;
+
+    unsafe { do_syscall0r!(SYS_FS_UNMOUNT, path_ptr, path_len) }
+
+}
+
+pub fn lsblk() {
+    // this should prob return a cloned mount map but I'm lazy
+    unsafe { do_syscall0!(SYS_FS_LSBLK) }
 }
 
 struct Console;

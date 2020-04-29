@@ -1,0 +1,15 @@
+[package]
+name = "mount"
+version = "0.1.0"
+authors = [
+    "Eric Frankel <eric.frankel@gatech.edu>"
+]
+edition = "2018"
+
+[package.metadata.cargo-xbuild]
+memcpy = true
+
+[dependencies]
+aarch64 = { path = "../../lib/aarch64/" }
+kernel_api = { path = "../../lib/kernel_api" }
+blockdev = { path = "../../lib/blockdev", features = ["no_std"] }

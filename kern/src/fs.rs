@@ -1,4 +1,3 @@
-pub mod sd;
 pub mod fd;
 pub mod mount_map;
 

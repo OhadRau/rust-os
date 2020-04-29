@@ -9,6 +9,7 @@ use pi::interrupt::{Controller, Interrupt};
 
 use self::syndrome::{Syndrome, Fault};
 use self::syscall::handle_syscall;
+use crate::console::kprintln;
 
 #[repr(u16)]
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
@@ -42,9 +43,8 @@ pub struct Info {
 #[no_mangle]
 pub extern "C" fn handle_exception(info: Info, esr: u32, tf: &mut TrapFrame) {
     //use crate::console::kprintln;
-
     //kprintln!("Handling exception! Source: {:?}, kind: {:?}, tf: {:?}, esr: {}",
-    //          info.source, info.kind, tf, esr);
+              //info.source, info.kind, tf, esr);
     if info.kind == Kind::Synchronous {
         let syndrome = Syndrome::from(esr);
         let addr = unsafe { aarch64::FAR_EL1.get() } as usize;
@@ -57,6 +57,7 @@ pub extern "C" fn handle_exception(info: Info, esr: u32, tf: &mut TrapFrame) {
         match syndrome {
             Syndrome::Brk(_) => {
                 tf.elr += 4; // Go to next instruction
+                kprintln!("brk elr: {}", tf.elr);
                 crate::shell::shell(" [brk]>")
             },
             Syndrome::Svc(num) => handle_syscall(num, tf),
@@ -72,7 +73,7 @@ pub extern "C" fn handle_exception(info: Info, esr: u32, tf: &mut TrapFrame) {
                         crate::SCHEDULER.kill(tf);
                     }
                 },
-            _ => (),
+            _ => kprintln!("Detected syndrome {:?} ({:b}, FAR = {:x})", syndrome, esr, addr),
         }
     } else if info.kind == Kind::Irq {
         let controller = Controller::new();

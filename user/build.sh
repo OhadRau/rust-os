@@ -3,7 +3,7 @@
 IMG=fs.img
 MNT=mnt
 
-PROGS=(sleep fib echo shell mkdir touch rm cat)
+PROGS=(sleep fib echo shell mkdir touch rm lsblk mount umount cat)
 
 for d in ${PROGS[@]}; do
     (cd $d; make build)
@@ -32,3 +32,4 @@ sudo cp ./build.sh $MNT/build.sh
 for d in ${PROGS[@]}; do
     sudo cp $d/build/$d.bin $MNT/bin/$d
 done
+sudo cp fstab $MNT

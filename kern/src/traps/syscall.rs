@@ -438,8 +438,8 @@ pub fn sys_fs_mount(part_num: usize, path_ptr: *const u8, path_len: usize, opts_
 
 
     // lol make this safer idk
-    let opts = unsafe { (*opts_ptr).clone() };
-    FILESYSTEM.mount(part_num, path, opts);
+    //let opts = unsafe { (*opts_ptr).clone() };
+    FILESYSTEM.mount(part_num, path, MountOptions::Normal);
 }
 
 pub fn sys_fs_unmount(path_ptr: *const u8, path_len: usize, tf: &mut TrapFrame) {

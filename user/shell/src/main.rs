@@ -124,16 +124,23 @@ fn main(_args: &[&str]) {
         loop {
             if text_idx >= 512 { continue; }
             let ch = input();
-            text_buf[text_idx] = ch;
-            text_idx += 1;
-            output(ch);
             if ch == '\n' as u8 || ch == '\r' as u8 {
                 break;
+            } else if ch == 8 || ch == 127 { // backspace
+                if text_idx > 0 {
+                    text_idx -= 1;
+                    text_buf[text_idx] = b' ' as u8;
+                    print!("\x08 \x08");
+                }
+            } else {
+                text_buf[text_idx] = ch;
+                text_idx += 1;
+                output(ch);
             }
         }
         println!("");
 
-        let command_text = &text_buf[0..text_idx];
+        let command_text = &text_buf[0..=text_idx];
         match parse_command(command_text) {
             Some(args) => {
                 if args.len() == 0 { continue }
