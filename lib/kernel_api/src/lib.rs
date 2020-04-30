@@ -171,4 +171,4 @@ pub const SYS_FILE_READ: usize = 31;
 pub const SYS_FILE_WRITE: usize = 32;
 
 // Directory-specific syscalls
-pub const SYS_DIR_LIST: usize = 40;
+pub const SYS_DIR_ENTRY: usize = 40;

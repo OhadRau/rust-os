@@ -459,6 +459,69 @@ pub fn sys_fs_unmount(path_ptr: *const u8, path_len: usize, tf: &mut TrapFrame) 
     }
 }
 
+pub fn sys_dir_entry(path_ptr: *const u8, 
+                     path_len: usize, 
+                     entry_name_ptr: *mut u8, 
+                     entry_name_len: usize, 
+                     offset: usize,
+                     tf: &mut TrapFrame) {
+    use fat32::traits::FileSystem;
+    use fat32::traits::Dir;
+    use fat32::traits::Entry;
+    let path = match parse_path(path_ptr, path_len) {
+        Some(path) => path,
+        None => {
+            tf.xs[7] = 70; // Invalid argument
+            return
+        },
+    };
+
+    let mut entry_name = unsafe { core::slice::from_raw_parts_mut(entry_name_ptr, entry_name_len) };
+
+    // open dir 
+    let dir = match FILESYSTEM.open_dir(path) {
+        Ok(dir) => dir,
+        Err(_) => {
+            tf.xs[7] = OsError::IoErrorInvalidInput as u64;
+            return
+        }
+    };
+
+    // get the entry
+    let has_remaining;
+    let target_entry = match dir.entries() {
+        Ok(mut dir_iter) => match dir_iter.nth(offset) {
+            Some(entry) => { 
+                // nth 0 is the next element bc nth consumes elems
+                has_remaining = match dir_iter.nth(0) {
+                    Some(_) => true,
+                    None => false
+                };
+                entry
+            },
+            None => {
+                tf.xs[7] = OsError::IoErrorEof as u64;
+                return
+            }
+        },
+        Err(_) => {
+            tf.xs[7] = OsError::IoError as u64;
+            return
+        }
+    };
+
+    if target_entry.name().as_bytes().len() <= entry_name.len() {
+        entry_name[..target_entry.name().as_bytes().len()].copy_from_slice(target_entry.name().as_bytes());
+        tf.xs[0] = has_remaining as u64;
+        tf.xs[7] = OsError::Ok as u64;
+        return
+    } else {
+        tf.xs[7] = OsError::IoErrorInvalidData as u64;
+        return
+    }
+
+}
+
 pub fn handle_syscall(num: u16, tf: &mut TrapFrame) {
     match num as usize {
         SYS_EXIT => sys_exit(tf),
@@ -485,6 +548,7 @@ pub fn handle_syscall(num: u16, tf: &mut TrapFrame) {
 
         SYS_FILE_SEEK => sys_file_seek(Fd::from(tf.xs[0]), tf.xs[1], tf.xs[2] as i64, tf),
         SYS_FILE_READ => sys_file_read(Fd::from(tf.xs[0]), tf.xs[1] as *mut u8, tf.xs[2] as usize, tf),
+        SYS_DIR_ENTRY => sys_dir_entry(tf.xs[0] as *const u8, tf.xs[1] as usize, tf.xs[2] as *mut u8, tf.xs[3] as usize, tf.xs[4] as usize, tf),
 
         _ => {
             tf.xs[7] = OsError::Unknown as u64;

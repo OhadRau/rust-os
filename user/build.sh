@@ -3,7 +3,7 @@
 IMG=fs.img
 MNT=mnt
 
-PROGS=(sleep fib echo shell mkdir touch rm lsblk mount umount cat)
+PROGS=(sleep fib echo shell mkdir touch rm lsblk mount umount su ls cat)
 
 for d in ${PROGS[@]}; do
     (cd $d; make build)

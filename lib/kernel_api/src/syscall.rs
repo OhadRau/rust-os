@@ -139,6 +139,18 @@ pub fn lsblk() {
     unsafe { do_syscall0!(SYS_FS_LSBLK) }
 }
 
+// returns true if there are remaining directory entries
+// returns false if no remaining entries
+// returns error otherwise
+pub fn dir_entry(path: &str, entry_buf: &mut [u8], offset: usize) -> OsResult<bool> {
+    let path_ptr = path.as_ptr() as u64;
+    let path_len = path.len() as u64;
+    let entry_buf_ptr = entry_buf.as_ptr() as u64;
+    let entry_buf_len = entry_buf.len() as u64;
+    
+    unsafe { do_syscall1r!(SYS_DIR_ENTRY, path_ptr, path_len, entry_buf_ptr, entry_buf_len, offset as u64).map(|x| x != 0) }
+}
+
 struct Console;
 
 impl fmt::Write for Console {
