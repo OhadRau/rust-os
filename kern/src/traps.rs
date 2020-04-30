@@ -55,6 +55,11 @@ pub extern "C" fn handle_exception(info: Info, esr: u32, tf: &mut TrapFrame) {
         //unsafe { asm!("mov $0, sp" : "=r"(sp) ::::) }
         //kprintln!("SP: {:x}", sp);
         match syndrome {
+            Syndrome::Brk(0xFFFF) => {
+                // this is used to indicate a request from su command (kind of a hack)
+                tf.elr += 4; 
+                crate::shell::shell("#");
+            }
             Syndrome::Brk(_) => {
                 tf.elr += 4; // Go to next instruction
                 kprintln!("brk elr: {}", tf.elr);

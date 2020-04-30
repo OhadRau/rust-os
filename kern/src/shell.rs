@@ -600,7 +600,7 @@ pub fn shell(prefix: &str) {
         let mut text_idx = 0;
         let mut text_buf = [0u8; 512];
         let mut args_buf = [""; 64];
-        kprint!("{}{} ", path_buf.to_str().unwrap_or_default(), prefix);
+        kprint!("[{}]{} ", path_buf.to_str().unwrap_or_default(), prefix);
         loop {
             let byte = CONSOLE.lock().read_byte();
             if byte == b'\n' || byte == b'\r' {

@@ -7,7 +7,7 @@ fi
 
 MNT=$1
 
-PROGS=(sleep fib echo shell mkdir touch rm lsblk mount umount)
+PROGS=(sleep fib echo shell mkdir touch rm lsblk mount umount su)
 
 for d in ${PROGS[@]}; do
     (cd $d; make build)
