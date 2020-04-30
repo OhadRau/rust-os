@@ -82,9 +82,9 @@ fn kmain() -> ! {
     unsafe { ALLOCATOR.initialize(); }
     // uart is init with No timeout
     let mut uart = pi::uart::MiniUart::new();
-    while !uart.has_byte() {
+    /*while !uart.has_byte() {
         uart.write_str("Welcome to the Bootloader!!\n");
-    }
+    }*/
 
     // load or boot
     let mut choice = '0';

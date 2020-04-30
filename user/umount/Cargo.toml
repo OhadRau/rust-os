@@ -12,4 +12,3 @@ memcpy = true
 [dependencies]
 aarch64 = { path = "../../lib/aarch64/" }
 kernel_api = { path = "../../lib/kernel_api" }
-blockdev = { path = "../../lib/blockdev", features = ["no_std"] }

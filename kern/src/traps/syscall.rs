@@ -427,7 +427,7 @@ pub fn sys_fs_lsblk() {
     FILESYSTEM.lsblk();
 }
 
-pub fn sys_fs_mount(part_num: usize, path_ptr: *const u8, path_len: usize, opts_ptr: *mut MountOptions, tf: &mut TrapFrame) {
+pub fn sys_fs_mount(part_num: usize, path_ptr: *const u8, path_len: usize, encrypted: bool, tf: &mut TrapFrame) {
     let path = match parse_path(path_ptr, path_len) {
         Some(path) => path,
         None => {
@@ -436,10 +436,12 @@ pub fn sys_fs_mount(part_num: usize, path_ptr: *const u8, path_len: usize, opts_
         },
     };
 
+    let opts = match encrypted {
+        true => MountOptions::Encrypted(None),
+        false => MountOptions::Normal
+    };
 
-    // lol make this safer idk
-    //let opts = unsafe { (*opts_ptr).clone() };
-    FILESYSTEM.mount(part_num, path, MountOptions::Normal);
+    FILESYSTEM.mount(part_num, path, opts);
 }
 
 pub fn sys_fs_unmount(path_ptr: *const u8, path_len: usize, tf: &mut TrapFrame) {
@@ -450,9 +452,10 @@ pub fn sys_fs_unmount(path_ptr: *const u8, path_len: usize, tf: &mut TrapFrame) 
             return
         },
     };
+
     match FILESYSTEM.unmount(path) {
         Err(_) => tf.xs[7] = OsError::IoError as u64,
-        Ok(_) => ()
+        Ok(_) => tf.xs[7] = OsError::Ok as u64
     }
 }
 
@@ -477,7 +480,7 @@ pub fn handle_syscall(num: u16, tf: &mut TrapFrame) {
         SYS_FS_CLOSE => sys_fs_close(Fd::from(tf.xs[0]), tf),
         SYS_FS_DELETE => sys_fs_delete(tf.xs[0] as *const u8, tf.xs[1] as usize, tf),
         SYS_FS_LSBLK => sys_fs_lsblk(),
-        SYS_FS_MOUNT => sys_fs_mount(tf.xs[0] as usize, tf.xs[1] as *const u8, tf.xs[2] as usize, tf.xs[3] as *mut MountOptions, tf),
+        SYS_FS_MOUNT => sys_fs_mount(tf.xs[0] as usize, tf.xs[1] as *const u8, tf.xs[2] as usize, tf.xs[3] != 0, tf),
         SYS_FS_UNMOUNT => sys_fs_unmount(tf.xs[0] as *const u8, tf.xs[1] as usize, tf),
 
         SYS_FILE_SEEK => sys_file_seek(Fd::from(tf.xs[0]), tf.xs[1], tf.xs[2] as i64, tf),
