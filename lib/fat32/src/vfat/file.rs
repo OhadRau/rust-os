@@ -161,7 +161,7 @@ impl<HANDLE: VFatHandle> io::Seek for File<HANDLE> {
         self.amt_read = new as usize;
 
         self.pos = self.vfat.lock(|vfat: &mut VFat<HANDLE>| -> io::Result<Pos> {
-            vfat.seek(base, new as usize)
+            vfat.seek_and_extend(base, new as usize)
         })?;
 
         Ok(new as u64)

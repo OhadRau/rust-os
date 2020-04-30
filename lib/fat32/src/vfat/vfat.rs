@@ -261,16 +261,12 @@ impl<HANDLE: VFatHandle> VFat<HANDLE> {
     pub fn seek(&mut self, mut base: Pos, mut offset: usize) -> io::Result<Pos> {
         let cluster_size =
             (self.bytes_per_sector as usize) * (self.sectors_per_cluster as usize);
-        
+
         while offset >= cluster_size {
             // AVOID UNDERFLOW! (512 - 1024) as usize > 0usize
             offset = offset.saturating_sub(cluster_size);
             match self.fat_entry(base.cluster)?.status() {
-                Status::Eoc(_) => {
-                    if offset > 0 {
-                        return ioerr!(InvalidInput, "Tried to seek past end of file")
-                    }
-                },
+                Status::Eoc(_) => return ioerr!(InvalidInput, "Tried to seek past end of file"),
                 Status::Data(next) => {
                     base.cluster = next;
                     base.offset = 0;
