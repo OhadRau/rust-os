@@ -9,7 +9,7 @@ use kernel_api::println;
 
 fn main(args: &[&str]) {
     if args.len() < 2 {
-        println!("not enough arguments!\nusage: mount <part> <path> -p <pw>");
+        println!("not enough arguments!\nusage: mount <part> <path> -p");
         return;
     }
 
